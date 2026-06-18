@@ -57,7 +57,7 @@ function ThemeSwitcher() {
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger
-        className="border-border/40 bg-background text-muted-foreground hover:text-foreground flex cursor-pointer items-center justify-center gap-1 rounded border px-2 py-1 transition-colors focus:ring-2 focus:ring-primary/20 focus:outline-none"
+        className="border-border/40 bg-background text-muted-foreground hover:text-foreground focus:ring-primary/20 flex cursor-pointer items-center justify-center gap-1 rounded border px-2 py-1 transition-colors focus:ring-2 focus:outline-none"
         aria-label={t("header.themeSwitcher", "Toggle theme")}
       >
         <ActiveIcon className="h-4 w-4" />
@@ -72,8 +72,8 @@ function ThemeSwitcher() {
           {THEME_OPTIONS.map(({ mode: optMode, label, Icon }) => (
             <DropdownMenu.Item
               key={optMode}
-              className={`flex cursor-pointer select-none items-center gap-2 rounded-md px-3 py-2 text-sm outline-none transition-colors data-[highlighted]:bg-primary/10 hover:bg-primary/10 focus:bg-primary/10 ${
-                mode === optMode ? "bg-primary/5 font-medium text-primary" : "text-foreground"
+              className={`data-[highlighted]:bg-primary/10 hover:bg-primary/10 focus:bg-primary/10 flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors outline-none select-none ${
+                mode === optMode ? "bg-primary/5 text-primary font-medium" : "text-foreground"
               }`}
               onSelect={() => setMode(optMode)}
             >
