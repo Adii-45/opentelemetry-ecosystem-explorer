@@ -17,13 +17,16 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect } from "vitest";
+import { ThemeProvider } from "@/theme-context";
 import { Header } from "./header";
 
 describe("Header", () => {
   it("renders the app name", () => {
     render(
       <MemoryRouter>
-        <Header />
+        <ThemeProvider>
+          <Header />
+        </ThemeProvider>
       </MemoryRouter>
     );
 
@@ -33,7 +36,9 @@ describe("Header", () => {
   it("renders navigation links", () => {
     render(
       <MemoryRouter>
-        <Header />
+        <ThemeProvider>
+          <Header />
+        </ThemeProvider>
       </MemoryRouter>
     );
 
@@ -47,7 +52,9 @@ describe("Header", () => {
   it("navigation links point to correct routes", () => {
     render(
       <MemoryRouter>
-        <Header />
+        <ThemeProvider>
+          <Header />
+        </ThemeProvider>
       </MemoryRouter>
     );
 
@@ -61,7 +68,9 @@ describe("Header", () => {
   it("renders the logo as a link to home", () => {
     render(
       <MemoryRouter>
-        <Header />
+        <ThemeProvider>
+          <Header />
+        </ThemeProvider>
       </MemoryRouter>
     );
 
@@ -72,7 +81,9 @@ describe("Header", () => {
   it("shows hamburger button", () => {
     render(
       <MemoryRouter>
-        <Header />
+        <ThemeProvider>
+          <Header />
+        </ThemeProvider>
       </MemoryRouter>
     );
 
@@ -83,7 +94,9 @@ describe("Header", () => {
     const user = userEvent.setup();
     render(
       <MemoryRouter>
-        <Header />
+        <ThemeProvider>
+          <Header />
+        </ThemeProvider>
       </MemoryRouter>
     );
 
@@ -103,7 +116,9 @@ describe("Header", () => {
     const user = userEvent.setup();
     render(
       <MemoryRouter>
-        <Header />
+        <ThemeProvider>
+          <Header />
+        </ThemeProvider>
       </MemoryRouter>
     );
 
@@ -122,7 +137,9 @@ describe("Header", () => {
     const user = userEvent.setup();
     render(
       <MemoryRouter>
-        <Header />
+        <ThemeProvider>
+          <Header />
+        </ThemeProvider>
       </MemoryRouter>
     );
 
