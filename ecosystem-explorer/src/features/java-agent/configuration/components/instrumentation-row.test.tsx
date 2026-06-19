@@ -15,7 +15,6 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import type { InstrumentationListEntry, InstrumentationModule } from "@/types/javaagent";
 import { InstrumentationRow } from "./instrumentation-row";
 
@@ -56,7 +55,7 @@ describe("InstrumentationRow", () => {
       <InstrumentationRow
         module={moduleFixture("cassandra", [entry("cassandra-3.0"), entry("cassandra-4.4")])}
         status="none"
-        onAddCustomization={() => {}}
+        isConfigured={false}
         onSetEnabled={() => {}}
         onRemoveCustomization={() => {}}
         {...expansionDefaults}
@@ -66,61 +65,81 @@ describe("InstrumentationRow", () => {
     expect(screen.getByText(/2 versions/)).toBeInTheDocument();
   });
 
-  it("shows 'enabled by default' pill for default-enabled modules", () => {
+  it("shows only Enabled for default-enabled modules (no default text)", () => {
     render(
       <InstrumentationRow
         module={moduleFixture("cassandra", [entry("cassandra-4.4")])}
         status="none"
-        onAddCustomization={() => {}}
+        isConfigured={false}
         onSetEnabled={() => {}}
         onRemoveCustomization={() => {}}
         {...expansionDefaults}
       />
     );
-    expect(screen.getByText("enabled by default")).toBeInTheDocument();
+    expect(screen.getByText("Enabled")).toBeInTheDocument();
+    expect(screen.queryByText(/Default:/)).toBeNull();
   });
 
-  it("shows 'disabled by default' pill for default-disabled modules", () => {
+  it("shows only Disabled for default-disabled modules (no default text)", () => {
     render(
       <InstrumentationRow
         module={moduleFixture("jmx_metrics", [entry("jmx-metrics")], true)}
         status="none"
-        onAddCustomization={() => {}}
+        isConfigured={false}
         onSetEnabled={() => {}}
         onRemoveCustomization={() => {}}
         {...expansionDefaults}
       />
     );
-    expect(screen.getByText("disabled by default")).toBeInTheDocument();
+    expect(screen.getByText("Disabled")).toBeInTheDocument();
+    expect(screen.queryByText(/Default:/)).toBeNull();
   });
 
-  it("calls onAddCustomization when + Customize is clicked", () => {
-    const onAdd = vi.fn();
+  it("shows Default metadata when customized state differs from default", () => {
+    render(
+      <InstrumentationRow
+        module={moduleFixture("cassandra", [entry("cassandra-4.4")])}
+        status="disabled"
+        isConfigured={false}
+        onSetEnabled={() => {}}
+        onRemoveCustomization={() => {}}
+        {...expansionDefaults}
+      />
+    );
+    expect(screen.getByText("Disabled")).toBeInTheDocument();
+    expect(screen.getByText("Default: Enabled")).toBeInTheDocument();
+  });
+
+  it("calls onToggleExpand when the header row is clicked", () => {
+    const onToggle = vi.fn();
     render(
       <InstrumentationRow
         module={moduleFixture("cassandra", [entry("cassandra-4.4")])}
         status="none"
-        onAddCustomization={onAdd}
+        isConfigured={false}
         onSetEnabled={() => {}}
         onRemoveCustomization={() => {}}
         {...expansionDefaults}
+        onToggleExpand={onToggle}
       />
     );
-    fireEvent.click(screen.getByLabelText(/Customize cassandra/));
-    expect(onAdd).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByText("cassandra"));
+    expect(onToggle).toHaveBeenCalledOnce();
   });
 
-  it("renders the toggle and ✕ when customized, with correct aria-pressed", () => {
+  it("renders the toggle and Reset button when expanded and customized", () => {
     const onSetEnabled = vi.fn();
     const onRemove = vi.fn();
     render(
       <InstrumentationRow
         module={moduleFixture("cassandra", [entry("cassandra-4.4")])}
         status="disabled"
-        onAddCustomization={() => {}}
+        isExpanded={true}
+        isConfigured={false}
         onSetEnabled={onSetEnabled}
         onRemoveCustomization={onRemove}
-        {...expansionDefaults}
+        onToggleExpand={vi.fn()}
+        onJumpToGeneral={vi.fn()}
       />
     );
     expect(screen.getByRole("button", { name: "Enabled" })).toHaveAttribute(
@@ -133,7 +152,7 @@ describe("InstrumentationRow", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Enabled" }));
     expect(onSetEnabled).toHaveBeenCalledWith(true);
-    fireEvent.click(screen.getByLabelText(/Remove customization for cassandra/));
+    fireEvent.click(screen.getByText(/Reset to default/));
     expect(onRemove).toHaveBeenCalledOnce();
   });
 
@@ -143,20 +162,24 @@ describe("InstrumentationRow", () => {
       <InstrumentationRow
         module={moduleFixture("cassandra", [entry("cassandra-4.4")])}
         status="disabled"
-        onAddCustomization={() => {}}
+        isExpanded={true}
+        isConfigured={false}
         onSetEnabled={onSetEnabled}
         onRemoveCustomization={() => {}}
-        {...expansionDefaults}
+        onToggleExpand={vi.fn()}
+        onJumpToGeneral={vi.fn()}
       />
     );
     rerender(
       <InstrumentationRow
         module={moduleFixture("cassandra", [entry("cassandra-4.4")])}
         status="enabled"
-        onAddCustomization={() => {}}
+        isExpanded={true}
+        isConfigured={false}
         onSetEnabled={onSetEnabled}
         onRemoveCustomization={() => {}}
-        {...expansionDefaults}
+        onToggleExpand={vi.fn()}
+        onJumpToGeneral={vi.fn()}
       />
     );
     expect(screen.getByRole("button", { name: "Enabled" })).toHaveAttribute("aria-pressed", "true");
@@ -173,7 +196,7 @@ describe("InstrumentationRow", () => {
       <InstrumentationRow
         module={moduleFixture("jmx_metrics", [entry("jmx-metrics", { _is_custom: true })], true)}
         status="none"
-        onAddCustomization={() => {}}
+        isConfigured={false}
         onSetEnabled={() => {}}
         onRemoveCustomization={() => {}}
         {...expansionDefaults}
@@ -187,7 +210,7 @@ describe("InstrumentationRow", () => {
       <InstrumentationRow
         module={moduleFixture("cassandra", [entry("cassandra-4.4")])}
         status="none"
-        onAddCustomization={() => {}}
+        isConfigured={false}
         onSetEnabled={() => {}}
         onRemoveCustomization={() => {}}
         {...expansionDefaults}
@@ -212,30 +235,11 @@ describe("InstrumentationRow — expansion", () => {
     ],
   };
 
-  it("calls onToggleExpand when the toggle button is clicked", async () => {
-    const user = userEvent.setup();
-    const onToggle = vi.fn();
-    render(
-      <InstrumentationRow
-        module={baseModule}
-        status="none"
-        isExpanded={false}
-        onAddCustomization={vi.fn()}
-        onSetEnabled={vi.fn()}
-        onRemoveCustomization={vi.fn()}
-        onToggleExpand={onToggle}
-        onJumpToGeneral={vi.fn()}
-      />
-    );
-    await user.click(screen.getByRole("button", { name: /toggle details for cassandra/i }));
-    expect(onToggle).toHaveBeenCalledTimes(1);
-  });
-
   it("renders the config form only when expanded", () => {
     const props = {
       module: baseModule,
       status: "none" as const,
-      onAddCustomization: vi.fn(),
+      isConfigured: false,
       onSetEnabled: vi.fn(),
       onRemoveCustomization: vi.fn(),
       onToggleExpand: vi.fn(),
@@ -253,7 +257,7 @@ describe("InstrumentationRow — expansion", () => {
         module={baseModule}
         status="none"
         isExpanded={false}
-        onAddCustomization={vi.fn()}
+        isConfigured={false}
         onSetEnabled={vi.fn()}
         onRemoveCustomization={vi.fn()}
         onToggleExpand={vi.fn()}
@@ -269,7 +273,7 @@ describe("InstrumentationRow — expansion", () => {
         module={baseModule}
         status="none"
         isExpanded={true}
-        onAddCustomization={vi.fn()}
+        isConfigured={false}
         onSetEnabled={vi.fn()}
         onRemoveCustomization={vi.fn()}
         onToggleExpand={vi.fn()}
