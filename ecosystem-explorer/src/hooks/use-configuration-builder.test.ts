@@ -118,7 +118,7 @@ describe("useConfigurationBuilderState", () => {
     });
     const distribution = result.current.state.values["distribution"] as Record<
       string,
-      Record<string, Record<string, any>>
+      Record<string, Record<string, { enabled: boolean }>>
     >;
     expect(distribution.javaagent.instrumentation.cassandra.enabled).toBe(false);
   });

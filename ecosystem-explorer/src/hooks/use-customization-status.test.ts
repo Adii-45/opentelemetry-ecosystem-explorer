@@ -53,11 +53,13 @@ describe("useCustomizationStatusMap", () => {
   });
 
   it("maps each module name to its status", () => {
-    mocked.mockReturnValue(fakeBuilderState({
-      jmx_metrics: { enabled: true },
-      cassandra: { enabled: false },
-      kafka_clients: { enabled: false }
-    }));
+    mocked.mockReturnValue(
+      fakeBuilderState({
+        jmx_metrics: { enabled: true },
+        cassandra: { enabled: false },
+        kafka_clients: { enabled: false },
+      })
+    );
     const { result } = renderHook(() => useCustomizationStatusMap());
     expect(result.current.get("cassandra")).toBe("disabled");
     expect(result.current.get("jmx_metrics")).toBe("enabled");
@@ -76,10 +78,12 @@ describe("useCustomizationStatus", () => {
   });
 
   it("returns 'enabled' / 'disabled' as appropriate", () => {
-    mocked.mockReturnValue(fakeBuilderState({
-      jmx_metrics: { enabled: true },
-      cassandra: { enabled: false }
-    }));
+    mocked.mockReturnValue(
+      fakeBuilderState({
+        jmx_metrics: { enabled: true },
+        cassandra: { enabled: false },
+      })
+    );
     expect(renderHook(() => useCustomizationStatus("cassandra")).result.current).toBe("disabled");
     expect(renderHook(() => useCustomizationStatus("jmx_metrics")).result.current).toBe("enabled");
     expect(renderHook(() => useCustomizationStatus("foo")).result.current).toBe("none");
@@ -90,10 +94,12 @@ describe("useCustomizationStatusMap memoization", () => {
   beforeEach(() => mocked.mockReset());
 
   it("returns the same Map reference across re-renders when state.values is unchanged", () => {
-    mocked.mockReturnValue(fakeBuilderState({
-      jmx_metrics: { enabled: true },
-      cassandra: { enabled: false }
-    }));
+    mocked.mockReturnValue(
+      fakeBuilderState({
+        jmx_metrics: { enabled: true },
+        cassandra: { enabled: false },
+      })
+    );
     const { result, rerender } = renderHook(() => useCustomizationStatusMap());
     const first = result.current;
     rerender();

@@ -58,10 +58,11 @@ export function InstrumentationRow({
     ? "border-primary/40 shadow-md bg-surface-card"
     : "border-border/60 shadow-sm bg-surface-card hover:border-border/80";
 
-  const headerBgClass = 
-    isExplicitlyEnabled ? "bg-primary/5" :
-    isExplicitlyDisabled ? "bg-red-500/5" :
-    "bg-muted/20";
+  const headerBgClass = isExplicitlyEnabled
+    ? "bg-primary/5"
+    : isExplicitlyDisabled
+      ? "bg-red-500/5"
+      : "bg-muted/20";
 
   return (
     <div
@@ -98,14 +99,16 @@ export function InstrumentationRow({
 
         <div className="flex items-center gap-4">
           <div className="flex flex-col items-end text-right">
-             <span className={`text-sm font-bold ${isEnabled ? "text-emerald-500" : "text-muted-foreground"}`}>
-                {isEnabled ? t("builder.row.enabled") : t("builder.row.disabled")}
-             </span>
-             {isEnabled !== enabledByDefault && (
-                <span className="text-[10px] font-medium text-muted-foreground/70">
-                  Default: {enabledByDefault ? t("builder.row.enabled") : t("builder.row.disabled")}
-                </span>
-             )}
+            <span
+              className={`text-sm font-bold ${isEnabled ? "text-emerald-500" : "text-muted-foreground"}`}
+            >
+              {isEnabled ? t("builder.row.enabled") : t("builder.row.disabled")}
+            </span>
+            {isEnabled !== enabledByDefault && (
+              <span className="text-muted-foreground/70 text-[10px] font-medium">
+                Default: {enabledByDefault ? t("builder.row.enabled") : t("builder.row.disabled")}
+              </span>
+            )}
           </div>
 
           <ChevronRight
@@ -128,19 +131,25 @@ export function InstrumentationRow({
           className="bg-surface-card px-4 py-4 sm:px-5 sm:py-5"
           data-yaml-section-key="instrumentation/development"
         >
-          <div className="mb-6 flex items-center justify-between border-b border-border/40 pb-4">
-             <div>
-               <h5 className="text-sm font-semibold text-foreground">Instrumentation Status</h5>
-               <p className="text-xs text-muted-foreground">Explicitly enable or disable this instrumentation.</p>
-             </div>
-             <div className="flex flex-col items-end gap-1.5">
-               <CustomizationToggle enabled={isEnabled} onChange={onSetEnabled} />
-               {status !== "none" && (
-                 <button type="button" onClick={onRemoveCustomization} className="text-[10px] text-muted-foreground hover:underline transition-colors">
-                   Reset to default
-                 </button>
-               )}
-             </div>
+          <div className="border-border/40 mb-6 flex items-center justify-between border-b pb-4">
+            <div>
+              <h5 className="text-foreground text-sm font-semibold">Instrumentation Status</h5>
+              <p className="text-muted-foreground text-xs">
+                Explicitly enable or disable this instrumentation.
+              </p>
+            </div>
+            <div className="flex flex-col items-end gap-1.5">
+              <CustomizationToggle enabled={isEnabled} onChange={onSetEnabled} />
+              {status !== "none" && (
+                <button
+                  type="button"
+                  onClick={onRemoveCustomization}
+                  className="text-muted-foreground text-[10px] transition-colors hover:underline"
+                >
+                  Reset to default
+                </button>
+              )}
+            </div>
           </div>
           {description ? (
             <p className="text-muted-foreground mb-6 text-sm leading-relaxed">{description}</p>
@@ -151,8 +160,6 @@ export function InstrumentationRow({
     </div>
   );
 }
-
-
 
 function CustomizationToggle({
   enabled,

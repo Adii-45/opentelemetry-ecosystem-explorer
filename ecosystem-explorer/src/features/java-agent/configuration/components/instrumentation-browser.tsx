@@ -104,8 +104,6 @@ export function InstrumentationBrowser({
     });
   }, [modules, customizedSet, trimmedSearch, statusFilter]);
 
-
-
   const handleSetEnabled = useCallback(
     (name: string, enabled: boolean) => {
       setCustomization(name, enabled ? "enabled" : "disabled");

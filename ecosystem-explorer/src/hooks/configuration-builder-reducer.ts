@@ -35,8 +35,6 @@ export const INITIAL_STATE: ConfigurationBuilderState = {
 
 const INSTRUMENTATION_PATH = ["distribution", "javaagent", "instrumentation"];
 
-
-
 export function configurationBuilderReducer(
   state: ConfigurationBuilderState,
   action: ConfigurationBuilderAction

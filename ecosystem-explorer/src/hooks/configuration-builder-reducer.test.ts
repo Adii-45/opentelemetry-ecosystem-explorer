@@ -15,7 +15,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { configurationBuilderReducer, INITIAL_STATE } from "./configuration-builder-reducer";
-import type { ConfigurationBuilderState } from "@/types/configuration-builder";
+import type { ConfigurationBuilderState, ConfigValues } from "@/types/configuration-builder";
 
 describe("configurationBuilderReducer", () => {
   const baseState: ConfigurationBuilderState = {
@@ -31,10 +31,10 @@ describe("configurationBuilderReducer", () => {
       if (!cur || typeof cur !== "object") return undefined;
       cur = (cur as Record<string, unknown>)[seg];
     }
-    return cur as Record<string, any> | undefined;
+    return cur as ConfigValues | undefined;
   }
 
-  function stateWithInstrumentation(modules: Record<string, any>) {
+  function stateWithInstrumentation(modules: ConfigValues) {
     return {
       ...baseState,
       values: { distribution: { javaagent: { instrumentation: modules } } },
@@ -360,7 +360,7 @@ describe("configurationBuilderReducer", () => {
       const before = stateWithInstrumentation({
         reactor: { enabled: true },
         thrift: { enabled: false },
-        cassandra: { enabled: false }
+        cassandra: { enabled: false },
       });
       const s = configurationBuilderReducer(before, {
         type: "PRUNE_INSTRUMENTATIONS",
@@ -368,14 +368,14 @@ describe("configurationBuilderReducer", () => {
       });
       expect(getInst(s)).toEqual({
         reactor: { enabled: true },
-        cassandra: { enabled: false }
+        cassandra: { enabled: false },
       });
     });
 
     it("removes the whole distribution branch when nothing valid remains", () => {
       const before = stateWithInstrumentation({
         thrift: { enabled: false },
-        jaxws_2_0_cxf_3_0: { enabled: false }
+        jaxws_2_0_cxf_3_0: { enabled: false },
       });
       const s = configurationBuilderReducer(before, {
         type: "PRUNE_INSTRUMENTATIONS",
@@ -388,7 +388,7 @@ describe("configurationBuilderReducer", () => {
     it("returns the same state reference when nothing needs pruning", () => {
       const before = stateWithInstrumentation({
         reactor: { enabled: true },
-        cassandra: { enabled: false }
+        cassandra: { enabled: false },
       });
       const s = configurationBuilderReducer(before, {
         type: "PRUNE_INSTRUMENTATIONS",
