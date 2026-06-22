@@ -86,6 +86,31 @@ describe("configurationBuilderReducer", () => {
       });
       expect(result.validationErrors).toEqual({});
     });
+
+    it("removes a module when enabled is set to null via SET_VALUE, pruning empty branches while preserving sibling customized modules", () => {
+      const stateWithSibling = stateWithInstrumentation({
+        cassandra: { enabled: true },
+        reactor: { enabled: false },
+      });
+      const resultWithSibling = configurationBuilderReducer(stateWithSibling, {
+        type: "SET_VALUE",
+        path: [...INSTRUMENTATION_PATH, "cassandra", "enabled"],
+        value: null,
+      });
+      expect(getInst(resultWithSibling)).toEqual({
+        reactor: { enabled: false },
+      });
+
+      const stateSolo = stateWithInstrumentation({
+        cassandra: { enabled: true },
+      });
+      const resultSolo = configurationBuilderReducer(stateSolo, {
+        type: "SET_VALUE",
+        path: [...INSTRUMENTATION_PATH, "cassandra", "enabled"],
+        value: null,
+      });
+      expect(resultSolo.values.distribution).toBeUndefined();
+    });
   });
 
   describe("SET_ENABLED", () => {

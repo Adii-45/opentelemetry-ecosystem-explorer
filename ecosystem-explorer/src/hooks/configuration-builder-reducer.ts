@@ -55,7 +55,7 @@ function cleanInstrumentation(values: ConfigValues): ConfigValues {
       if (Object.keys(modObj).length === 0) {
         delete inst[moduleName];
         changed = true;
-      } else if (changed) {
+      } else {
         inst[moduleName] = modObj;
       }
     } else if (moduleVal === null || moduleVal === undefined) {
