@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vitest";
-import { screen, within, cleanup, waitFor } from "@testing-library/react";
+import { screen, within, cleanup, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { installFetchInterceptor, uninstallFetchInterceptor } from "./helpers/fetch-interceptor";
 import { renderBuilderPage as renderPage } from "./helpers/render-builder-page";
