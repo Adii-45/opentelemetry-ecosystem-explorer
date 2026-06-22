@@ -75,7 +75,7 @@ describe("InstrumentationRow", () => {
       />
     );
     expect(screen.getByText("Enabled")).toBeInTheDocument();
-    expect(screen.queryByText(/Default:/)).toBeNull();
+    expect(screen.queryByText("enabled by default")).toBeNull();
   });
 
   it("shows only Disabled for default-disabled modules (no default text)", () => {
@@ -89,7 +89,7 @@ describe("InstrumentationRow", () => {
       />
     );
     expect(screen.getByText("Disabled")).toBeInTheDocument();
-    expect(screen.queryByText(/Default:/)).toBeNull();
+    expect(screen.queryByText("disabled by default")).toBeNull();
   });
 
   it("shows Default metadata when customized state differs from default", () => {
@@ -103,7 +103,7 @@ describe("InstrumentationRow", () => {
       />
     );
     expect(screen.getByText("Disabled")).toBeInTheDocument();
-    expect(screen.getByText("Default: Enabled")).toBeInTheDocument();
+    expect(screen.getByText("enabled by default")).toBeInTheDocument();
   });
 
   it("calls onToggleExpand when the header row is clicked", () => {

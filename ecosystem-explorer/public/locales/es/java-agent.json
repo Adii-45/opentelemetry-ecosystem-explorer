@@ -355,7 +355,10 @@
       "enabled": "Habilitado",
       "disabled": "Deshabilitado",
       "enabledByDefault": "habilitado por defecto",
-      "disabledByDefault": "deshabilitado por defecto"
+      "disabledByDefault": "deshabilitado por defecto",
+      "statusHeader": "Estado de instrumentación",
+      "statusDescription": "Habilita o deshabilita explícitamente esta instrumentación.",
+      "resetToDefault": "Restablecer al valor predeterminado"
     },
     "form": {
       "empty": "No hay opciones configurables para este módulo."

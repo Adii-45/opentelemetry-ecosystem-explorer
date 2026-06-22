@@ -105,7 +105,7 @@ export function InstrumentationRow({
             </span>
             {isEnabled !== enabledByDefault && (
               <span className="text-muted-foreground/70 text-[10px] font-medium">
-                Default: {enabledByDefault ? t("builder.row.enabled") : t("builder.row.disabled")}
+                {enabledByDefault ? t("builder.row.enabledByDefault") : t("builder.row.disabledByDefault")}
               </span>
             )}
           </div>
@@ -143,9 +143,11 @@ export function InstrumentationRow({
         >
           <div className="border-border/40 mb-6 flex items-center justify-between border-b pb-4">
             <div>
-              <h5 className="text-foreground text-sm font-semibold">Instrumentation Status</h5>
+              <h5 className="text-foreground text-sm font-semibold">
+                {t("builder.row.statusHeader")}
+              </h5>
               <p className="text-muted-foreground text-xs">
-                Explicitly enable or disable this instrumentation.
+                {t("builder.row.statusDescription")}
               </p>
             </div>
             <div className="flex flex-col items-end gap-1.5">
@@ -156,7 +158,7 @@ export function InstrumentationRow({
                   onClick={onRemoveCustomization}
                   className="text-muted-foreground text-[10px] transition-colors hover:underline"
                 >
-                  Reset to default
+                  {t("builder.row.resetToDefault")}
                 </button>
               )}
             </div>

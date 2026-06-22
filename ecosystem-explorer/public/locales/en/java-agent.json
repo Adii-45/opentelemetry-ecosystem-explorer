@@ -355,7 +355,10 @@
       "enabled": "Enabled",
       "disabled": "Disabled",
       "enabledByDefault": "enabled by default",
-      "disabledByDefault": "disabled by default"
+      "disabledByDefault": "disabled by default",
+      "statusHeader": "Instrumentation Status",
+      "statusDescription": "Explicitly enable or disable this instrumentation.",
+      "resetToDefault": "Reset to default"
     },
     "form": {
       "empty": "No configurable options for this module."
