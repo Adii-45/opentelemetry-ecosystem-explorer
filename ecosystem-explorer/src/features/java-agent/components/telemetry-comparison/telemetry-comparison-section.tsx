@@ -38,9 +38,7 @@ export function TelemetryComparisonSection({
   // or falls back to currentVersion (triggering a same-version warning) if viewing the oldest version.
   const currentIndex = versions.findIndex((v) => v.version === currentVersion);
   const defaultFromVersion =
-    currentIndex < versions.length - 1
-      ? versions[currentIndex + 1].version
-      : currentVersion;
+    currentIndex < versions.length - 1 ? versions[currentIndex + 1].version : currentVersion;
 
   const {
     fromVersion,
