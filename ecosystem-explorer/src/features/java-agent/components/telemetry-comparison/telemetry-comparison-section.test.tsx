@@ -50,6 +50,7 @@ const versions: VersionInfo[] = [
 
 describe("TelemetryComparisonSection — defaultFromVersion", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.mocked(useTelemetryComparisonModule.useTelemetryComparison).mockReturnValue(
       noopHookReturn
     );
