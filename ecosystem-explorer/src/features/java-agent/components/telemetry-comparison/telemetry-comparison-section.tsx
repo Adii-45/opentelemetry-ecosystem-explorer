@@ -39,7 +39,7 @@ export function TelemetryComparisonSection({
   const defaultFromVersion =
     currentIndex < versions.length - 1
       ? versions[currentIndex + 1].version
-      : versions[0]?.version || currentVersion;
+      : currentVersion;
 
   const {
     fromVersion,
