@@ -286,7 +286,7 @@ export interface MetricDiff {
   status: DiffStatus;
   metric: Metric;
   changes?: MetricChanges;
-  /** Populated only when the metric moved between when-conditions without content changes. */
+  /** When-condition associated with this diff entry. For condition-only moves collapsed into a single `changed` entry, this is the destination when-condition. */
   whenCondition?: string;
 }
 
@@ -294,7 +294,7 @@ export interface SpanDiff {
   status: DiffStatus;
   span: Span;
   changes?: SpanChanges;
-  /** Populated only when the span moved between when-conditions without content changes. */
+  /** When-condition associated with this diff entry. For condition-only moves collapsed into a single `changed` entry, this is the destination when-condition. */
   whenCondition?: string;
 }
 

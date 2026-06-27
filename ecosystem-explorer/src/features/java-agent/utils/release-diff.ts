@@ -71,7 +71,7 @@ function deduplicateSpanDiffs(spans: SpanDiff[]): SpanDiff[] {
       consumed.add(matchIdx);
       result.push({
         status: "changed",
-        span: removedEntry.span,
+        span: added[matchIdx].span,
         whenCondition: added[matchIdx].whenCondition,
       });
     } else {
@@ -104,7 +104,7 @@ function deduplicateMetricDiffs(metrics: MetricDiff[]): MetricDiff[] {
       consumed.add(matchIdx);
       result.push({
         status: "changed",
-        metric: removedEntry.metric,
+        metric: added[matchIdx].metric,
         whenCondition: added[matchIdx].whenCondition,
       });
     } else {
