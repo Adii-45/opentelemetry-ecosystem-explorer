@@ -286,12 +286,16 @@ export interface MetricDiff {
   status: DiffStatus;
   metric: Metric;
   changes?: MetricChanges;
+  /** Populated only when the metric moved between when-conditions without content changes. */
+  whenCondition?: string;
 }
 
 export interface SpanDiff {
   status: DiffStatus;
   span: Span;
   changes?: SpanChanges;
+  /** Populated only when the span moved between when-conditions without content changes. */
+  whenCondition?: string;
 }
 
 export interface TelemetryDiffResult {
