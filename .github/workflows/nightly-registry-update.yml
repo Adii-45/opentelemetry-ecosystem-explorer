@@ -30,6 +30,7 @@ jobs:
       collector_result: ${{ steps.collector_watcher.outcome }}
       java_result: ${{ steps.java_instrumentation_watcher.outcome }}
       dotnet_result: ${{ steps.dotnet_instrumentation_watcher.outcome }}
+      js_result: ${{ steps.js_instrumentation_watcher.outcome }}
       configuration_result: ${{ steps.configuration_watcher.outcome }}
     steps:
       - name: Detect repository type (if on a fork we use different git config)
@@ -167,6 +168,12 @@ jobs:
         id: dotnet_instrumentation_watcher
         if: always()
         run: uv run dotnet-instrumentation-watcher
+        continue-on-error: true
+
+      - name: Run js-instrumentation-watcher
+        id: js_instrumentation_watcher
+        if: always()
+        run: uv run js-instrumentation-watcher
         continue-on-error: true
 
       - name: Run configuration-watcher
@@ -340,3 +347,15 @@ jobs:
     with:
       success: ${{ needs.synchronize-inventory.outputs.dotnet_result == 'success' }}
       watcher-name: "dotnet-instrumentation-watcher"
+
+  notify-js:
+    name: Notify on js-instrumentation-watcher failure
+    permissions:
+      contents: read # Checkout reusable workflow source
+      issues: write # Open or comment on the js-instrumentation-watcher failure-tracking issue
+    needs: [synchronize-inventory]
+    if: ${{ !cancelled() && needs.synchronize-inventory.result != 'skipped' }}
+    uses: ./.github/workflows/reusable-workflow-notification.yml
+    with:
+      success: ${{ needs.synchronize-inventory.outputs.js_result == 'success' }}
+      watcher-name: "js-instrumentation-watcher"
