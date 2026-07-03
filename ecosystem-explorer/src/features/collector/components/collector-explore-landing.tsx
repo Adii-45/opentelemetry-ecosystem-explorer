@@ -126,14 +126,17 @@ function buildCollectorLandingStats(
 }
 
 export function CollectorExploreLanding() {
-  const { t } = useTranslation("collector");
+  const { t, i18n } = useTranslation("collector");
   const { data: collectorIndex, loading: indexLoading, error: indexError } = useCollectorIndex();
   const {
     data: versionData,
     loading: versionsLoading,
     error: versionsError,
   } = useCollectorVersions();
-  const numberFormatter = useMemo(() => new Intl.NumberFormat(), []);
+  const numberFormatter = useMemo(
+    () => new Intl.NumberFormat(i18n.resolvedLanguage || i18n.language),
+    [i18n.resolvedLanguage, i18n.language]
+  );
   const stats = useMemo(() => {
     if (!collectorIndex || !versionData) {
       return null;
@@ -246,6 +249,9 @@ export function CollectorExploreLanding() {
                       <p className="text-muted-foreground mt-1 text-sm">
                         {t("explore.distributions.componentCount", {
                           count: stats.byDistribution[distribution],
+                          formattedCount: numberFormatter.format(
+                            stats.byDistribution[distribution]
+                          ),
                         })}
                       </p>
                     </div>

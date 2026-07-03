@@ -193,8 +193,8 @@
     },
     "distributions": {
       "heading": "Distributions",
-      "componentCount_one": "{{count}} component",
-      "componentCount_other": "{{count}} components",
+      "componentCount_one": "{{formattedCount}} component",
+      "componentCount_other": "{{formattedCount}} components",
       "items": {
         "core": {
           "description": "Officially maintained components with stable APIs. Minimal dependencies, production-ready.",
