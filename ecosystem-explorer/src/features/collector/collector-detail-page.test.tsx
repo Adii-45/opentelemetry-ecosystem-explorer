@@ -147,8 +147,8 @@ describe("CollectorDetailPage", () => {
   it("resolves the version from the URL immediately when ?version= is present, independent of the versions fetch", () => {
     vi.mocked(useCollectorVersions).mockReturnValue({
       data: null,
-      loading: true,
-      error: null,
+      loading: false,
+      error: new Error("Failed to load collector-versions-index"),
     });
     vi.mocked(useCollectorComponent).mockReturnValue({
       data: mockComponent,

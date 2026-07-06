@@ -114,7 +114,7 @@ export function CollectorDetailPage() {
     );
   }
 
-  if (error || versionsError || !component) {
+  if (error || (!version && versionsError) || !component) {
     return (
       <PageContainer>
         <BackButton />
