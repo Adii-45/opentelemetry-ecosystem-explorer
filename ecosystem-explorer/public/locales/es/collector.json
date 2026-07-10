@@ -175,7 +175,7 @@
         },
         "processor": {
           "label": "Procesador",
-          "description": "Transforma, filtra, agrupa y enriquece los datos de telemetría antes de exportarlos"
+          "description": "Transforma, filtra, agrupa en lotes y enriquece los datos de telemetría antes de exportarlos"
         },
         "exporter": {
           "label": "Exportador",
@@ -183,7 +183,7 @@
         },
         "extension": {
           "label": "Extensión",
-          "description": "Ofrece capacidades adicionales como verificaciones de estado, perfilado y autenticación"
+          "description": "Ofrece capacidades adicionales como verificaciones de estado (health checks), perfilado y autenticación"
         },
         "connector": {
           "label": "Conector",
@@ -215,7 +215,7 @@
       "heading": "Recursos",
       "items": {
         "officialDocs": "Documentación oficial",
-        "gettingStarted": "Guía de introducción",
+        "gettingStarted": "Primeros pasos",
         "configReference": "Referencia de configuración",
         "githubCore": "GitHub (Core)",
         "githubContrib": "GitHub (Contrib)"
