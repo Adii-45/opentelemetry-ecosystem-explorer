@@ -52,16 +52,14 @@ export function useTelemetryComparison(
   const [toNotFound, setToNotFound] = useState(false);
   const fromInstrRef = useRef<InstrumentationData | null>(null);
   const toInstrRef = useRef<InstrumentationData | null>(null);
-  // Lets the in-flight loadComparison() closure below read the latest whenCondition
+  // Allows the in-flight loadComparison() closure below to read the latest whenCondition
   // instead of the value captured when the effect was created (see #795).
   const whenConditionRef = useRef(whenCondition);
+  // eslint-disable-next-line react-hooks/refs
+  whenConditionRef.current = whenCondition;
 
   const fromVersion = customFromVersion ?? initialFromVersion;
   const toVersion = customToVersion ?? initialToVersion;
-
-  useEffect(() => {
-    whenConditionRef.current = whenCondition;
-  }, [whenCondition]);
 
   useEffect(() => {
     let cancelled = false;
