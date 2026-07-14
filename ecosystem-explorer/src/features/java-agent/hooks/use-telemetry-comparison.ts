@@ -52,9 +52,16 @@ export function useTelemetryComparison(
   const [toNotFound, setToNotFound] = useState(false);
   const fromInstrRef = useRef<InstrumentationData | null>(null);
   const toInstrRef = useRef<InstrumentationData | null>(null);
+  // Lets the in-flight loadComparison() closure below read the latest whenCondition
+  // instead of the value captured when the effect was created (see #795).
+  const whenConditionRef = useRef(whenCondition);
 
   const fromVersion = customFromVersion ?? initialFromVersion;
   const toVersion = customToVersion ?? initialToVersion;
+
+  useEffect(() => {
+    whenConditionRef.current = whenCondition;
+  }, [whenCondition]);
 
   useEffect(() => {
     let cancelled = false;
@@ -121,11 +128,12 @@ export function useTelemetryComparison(
         const conditions = getAvailableWhenConditions(fromInstrumentation, toInstrumentation);
         setAvailableConditions(conditions);
 
+        const currentWhenCondition = whenConditionRef.current;
         const fallbackCondition = conditions.includes("default") ? "default" : conditions[0];
-        const activeCondition = conditions.includes(whenCondition)
-          ? whenCondition
+        const activeCondition = conditions.includes(currentWhenCondition)
+          ? currentWhenCondition
           : fallbackCondition;
-        if (activeCondition !== whenCondition) {
+        if (activeCondition !== currentWhenCondition) {
           setWhenCondition(activeCondition);
         }
 
@@ -147,7 +155,7 @@ export function useTelemetryComparison(
     return () => {
       cancelled = true;
     };
-  }, [instrumentationName, fromVersion, toVersion, t]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [instrumentationName, fromVersion, toVersion, t]);
 
   useEffect(() => {
     if (!fromInstrRef.current && !toInstrRef.current) return;
