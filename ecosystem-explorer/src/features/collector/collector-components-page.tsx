@@ -33,7 +33,10 @@ import { PageContainer } from "@/components/layout/page-container";
 import { BackButton } from "@/components/ui/back-button";
 import { GlowBadge } from "@/components/ui/glow-badge";
 import { DetailCard } from "@/components/ui/detail-card";
+import { SignalBadge } from "@/components/ui/signal-badge";
 import { useCollectorVersions, useCollectorComponents } from "@/hooks/use-collector-data";
+import { getPresentSignals } from "./utils/signal-badge-info";
+import { SIGNAL_STYLES } from "./styles/signal-styles";
 
 type ComponentTypeFilter =
   | "all"
@@ -368,7 +371,7 @@ function CollectorComponentsContent({ urlVersion }: { urlVersion?: string }) {
                         {comp.description || t("card.defaultDescription")}
                       </p>
 
-                      <div className="border-border/10 flex items-center gap-2 border-t pt-2">
+                      <div className="border-border/10 flex flex-wrap items-center gap-2 border-t pt-2">
                         {comp.stability && (
                           <GlowBadge
                             variant={comp.stability === "stable" ? "success" : "info"}
@@ -377,6 +380,17 @@ function CollectorComponentsContent({ urlVersion }: { urlVersion?: string }) {
                             {comp.stability}
                           </GlowBadge>
                         )}
+                        {getPresentSignals(comp).map((signal) => (
+                          <SignalBadge
+                            key={signal}
+                            label={t(`card.badges.${signal}.label`)}
+                            tooltip={t(`card.badges.${signal}.tooltip`)}
+                            ariaLabel={t(`card.badges.${signal}.ariaLabel`)}
+                            active={false}
+                            styles={SIGNAL_STYLES[signal]}
+                            size="compact"
+                          />
+                        ))}
                       </div>
                     </div>
                   </DetailCard>
