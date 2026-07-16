@@ -121,6 +121,19 @@
       "all": "Todas las distribuciones",
       "core": "Core",
       "contrib": "Contrib"
+    },
+    "stability": {
+      "label": "Estabilidad",
+      "all": "Todos",
+      "stable": "Estable",
+      "beta": "Beta",
+      "alpha": "Alfa",
+      "development": "En desarrollo",
+      "deprecated": "Obsoleto",
+      "unmaintained": "Sin mantenimiento"
+    },
+    "signal": {
+      "label": "Telemetría"
     }
   },
   "results": {

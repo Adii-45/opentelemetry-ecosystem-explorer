@@ -36,8 +36,9 @@ import { GlowBadge } from "@/components/ui/glow-badge";
 import { DetailCard } from "@/components/ui/detail-card";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import { useCollectorVersions, useCollectorComponents } from "@/hooks/use-collector-data";
-import { getPresentSignals } from "./utils/signal-badge-info";
-import { SIGNAL_STYLES } from "./styles/signal-styles";
+import { getPresentSignals, SIGNAL_ORDER, type CollectorSignal } from "./utils/signal-badge-info";
+import { SIGNAL_STYLES, getSignalFilterClasses } from "./styles/signal-styles";
+import type { Stability } from "@/types/collector";
 
 type ComponentTypeFilter =
   | "all"
@@ -47,6 +48,17 @@ type ComponentTypeFilter =
   | "extension"
   | "connector";
 type DistributionFilter = "all" | "core" | "contrib";
+type StabilityFilter = Stability | "all";
+
+// Ranked most-to-least stable, matching the detail page's stability legend ordering.
+const STABILITY_OPTIONS: Stability[] = [
+  "stable",
+  "beta",
+  "alpha",
+  "development",
+  "deprecated",
+  "unmaintained",
+];
 
 function getTypeFilter(value: string | null): ComponentTypeFilter {
   switch (value) {
@@ -69,6 +81,25 @@ function getDistributionFilter(value: string | null): DistributionFilter {
     default:
       return "all";
   }
+}
+
+function getStabilityFilter(value: string | null): StabilityFilter {
+  switch (value) {
+    case "alpha":
+    case "beta":
+    case "stable":
+    case "deprecated":
+    case "unmaintained":
+    case "development":
+      return value;
+    default:
+      return "all";
+  }
+}
+
+function getSignalFilter(values: string[]): Set<CollectorSignal> {
+  const known: readonly string[] = SIGNAL_ORDER;
+  return new Set(values.filter((v): v is CollectorSignal => known.includes(v)));
 }
 
 const getIcon = (type: string) => {
@@ -94,6 +125,8 @@ function CollectorComponentsContent({ urlVersion }: { urlVersion?: string }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const typeQuery = searchParams.get("type");
   const distributionQuery = searchParams.get("distribution");
+  const stabilityQuery = searchParams.get("stability");
+  const signalsParam = searchParams.getAll("signal").join(",");
   const urlSearch = searchParams.get("search") ?? "";
   const [searchQuery, setSearchQuery] = useState(urlSearch);
 
@@ -108,6 +141,13 @@ function CollectorComponentsContent({ urlVersion }: { urlVersion?: string }) {
   const distributionFilter = useMemo(
     () => getDistributionFilter(distributionQuery),
     [distributionQuery]
+  );
+
+  const stabilityFilter = useMemo(() => getStabilityFilter(stabilityQuery), [stabilityQuery]);
+
+  const signalFilter = useMemo(
+    () => getSignalFilter(signalsParam ? signalsParam.split(",") : []),
+    [signalsParam]
   );
 
   const {
@@ -138,9 +178,18 @@ function CollectorComponentsContent({ urlVersion }: { urlVersion?: string }) {
       const matchesType = typeFilter === "all" || comp.type === typeFilter;
       const matchesDistribution =
         distributionFilter === "all" || comp.distribution === distributionFilter;
-      return matchesSearch && matchesType && matchesDistribution;
+      const matchesStability = stabilityFilter === "all" || comp.stability === stabilityFilter;
+      // AND semantics, matching the Java Agent telemetry filter: a component matches only if it
+      // supports every currently-selected signal.
+      const presentSignals = getPresentSignals(comp);
+      const matchesSignal =
+        signalFilter.size === 0 ||
+        Array.from(signalFilter).every((s) => presentSignals.includes(s));
+      return (
+        matchesSearch && matchesType && matchesDistribution && matchesStability && matchesSignal
+      );
     });
-  }, [components, distributionFilter, searchQuery, typeFilter]);
+  }, [components, distributionFilter, searchQuery, typeFilter, stabilityFilter, signalFilter]);
 
   const handleVersionChange = (val: string) => {
     const currentSearch = searchParams.toString();
@@ -176,6 +225,33 @@ function CollectorComponentsContent({ urlVersion }: { urlVersion?: string }) {
       params.delete("distribution");
     } else {
       params.set("distribution", newDistribution);
+    }
+    setSearchParams(params);
+  };
+
+  const handleStabilityFilterChange = (newStability: string) => {
+    const params = new URLSearchParams(searchParams);
+    if (newStability === "all") {
+      params.delete("stability");
+    } else {
+      params.set("stability", newStability);
+    }
+    setSearchParams(params);
+  };
+
+  const handleSignalFilterToggle = (signal: CollectorSignal) => {
+    const params = new URLSearchParams(searchParams);
+    const current = getSignalFilter(params.getAll("signal"));
+    if (current.has(signal)) {
+      current.delete(signal);
+    } else {
+      current.add(signal);
+    }
+    params.delete("signal");
+    for (const s of SIGNAL_ORDER) {
+      if (current.has(s)) {
+        params.append("signal", s);
+      }
     }
     setSearchParams(params);
   };
@@ -250,6 +326,34 @@ function CollectorComponentsContent({ urlVersion }: { urlVersion?: string }) {
             </div>
 
             <div className="space-y-2">
+              <label
+                htmlFor="stability-filter"
+                className="text-muted-foreground text-sm font-medium"
+              >
+                {t("filters.stability.label")}
+              </label>
+              <div className="relative">
+                <select
+                  id="stability-filter"
+                  value={stabilityFilter}
+                  onChange={(e) => handleStabilityFilterChange(e.target.value)}
+                  className="border-border/60 bg-background/80 focus:border-primary/50 focus:ring-primary/20 w-[160px] cursor-pointer appearance-none rounded-lg border py-2.5 pr-10 pl-3 text-sm font-medium backdrop-blur-sm transition-all duration-200 focus:ring-2 focus:outline-none"
+                >
+                  <option value="all">{t("filters.stability.all")}</option>
+                  {STABILITY_OPTIONS.map((level) => (
+                    <option key={level} value={level}>
+                      {t(`filters.stability.${level}`)}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2"
+                  aria-hidden="true"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
               <label htmlFor="version-select" className="text-muted-foreground text-sm font-medium">
                 {t("filters.version.label")}
               </label>
@@ -298,6 +402,28 @@ function CollectorComponentsContent({ urlVersion }: { urlVersion?: string }) {
                 />
               </div>
             </div>
+          </div>
+        </div>
+
+        <div className="relative z-10 mt-6 space-y-3">
+          <div className="text-muted-foreground text-sm font-medium">
+            {t("filters.signal.label")}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {SIGNAL_ORDER.map((signal) => (
+              <button
+                key={signal}
+                type="button"
+                onClick={() => handleSignalFilterToggle(signal)}
+                aria-pressed={signalFilter.has(signal)}
+                className={`rounded-lg border-2 px-4 py-2 text-sm font-medium transition-all duration-200 ${getSignalFilterClasses(
+                  signal,
+                  signalFilter.has(signal)
+                )}`}
+              >
+                {t(`card.badges.${signal}.label`)}
+              </button>
+            ))}
           </div>
         </div>
       </div>

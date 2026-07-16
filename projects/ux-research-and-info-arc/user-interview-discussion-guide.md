@@ -54,12 +54,10 @@ Follow-up prompts:
 1. How do you decide whether a component is the right fit for your situation?
 
    Follow-up:
-
    - What information tells you, "Yes, this is what I need"?
 
 2. Can you think of a time when you couldn't get enough information to feel confident moving
    forward?
-
    - What did you do?
 
 ---
@@ -81,7 +79,6 @@ to act on, whereas "show what telemetry signals I'll get before I install" is mu
    Cursor) when working with OpenTelemetry?
 
 2. If yes:
-
    - When do you prefer AI over the official documentation?
    - What has your experience been like? (Accurate, frustrating, hit-or-miss?)
    - Has an AI tool ever given you incorrect information about OpenTelemetry? What happened?

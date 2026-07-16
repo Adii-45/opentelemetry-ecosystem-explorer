@@ -49,3 +49,9 @@ export const SIGNAL_STYLES: Record<CollectorSignal, SignalBadgeStyles> = {
       "bg-pink-500/5 border-pink-500/20 text-pink-700 dark:text-pink-400/70 hover:border-pink-500/50 hover:bg-pink-500/10",
   },
 };
+
+/** Mirrors Java Agent's `getTelemetryFilterClasses` for the Collector signal filter buttons. */
+export function getSignalFilterClasses(signal: CollectorSignal, isActive: boolean): string {
+  const styles = SIGNAL_STYLES[signal];
+  return isActive ? styles.active : styles.inactive;
+}
