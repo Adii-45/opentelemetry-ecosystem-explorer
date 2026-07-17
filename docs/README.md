@@ -27,6 +27,8 @@ additional information.
   crawlers and non-JS AI agents
 - [Agent Readiness](./AGENT_READINESS.md) - `llms.txt`, JSON schemas, and structured metadata for AI
   agents
+- [Upstream Metadata](./upstream-metadata.md) - How component metadata is managed upstream and how to
+  fix `upstream-metadata` issues
 
 **Deployment**: The web app deploys automatically to production when changes merge to `main`.
 Registry updates run nightly via GitHub Actions.

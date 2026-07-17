@@ -189,13 +189,14 @@ jobs:
 
           if [ -n "$EXISTING" ]; then
             # Edit the body rather than comment: this runs nightly and comments would be noisy.
-            gh issue edit "$EXISTING" --body-file "$BODY_FILE"
+            gh issue edit "$EXISTING" --body-file "$BODY_FILE" --add-label "contribution welcome"
             echo "Updated tracking issue #$EXISTING ($COUNT components missing display_name)."
           else
             gh issue create \
               --title "$ISSUE_TITLE" \
               --body-file "$BODY_FILE" \
-              --label "$LABEL"
+              --label "$LABEL" \
+              --label "contribution welcome"
             echo "Created tracking issue ($COUNT components missing display_name)."
           fi
 
