@@ -41,5 +41,16 @@
     "openAriaLabel": "Abrir filtros",
     "openWithCountAriaLabel_one": "Abrir filtros ({{count}} activo)",
     "openWithCountAriaLabel_other": "Abrir filtros ({{count}} activos)"
+  },
+  "views": {
+    "table": {
+      "columns": {
+        "name": "Nombre",
+        "type": "Tipo",
+        "signals": "Señales",
+        "distribution": "Distribución",
+        "stability": "Estabilidad"
+      }
+    }
   }
 }

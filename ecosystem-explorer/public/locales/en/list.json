@@ -41,5 +41,16 @@
     "openAriaLabel": "Open filters",
     "openWithCountAriaLabel_one": "Open filters ({{count}} active)",
     "openWithCountAriaLabel_other": "Open filters ({{count}} active)"
+  },
+  "views": {
+    "table": {
+      "columns": {
+        "name": "Name",
+        "type": "Type",
+        "signals": "Signals",
+        "distribution": "Distribution",
+        "stability": "Stability"
+      }
+    }
   }
 }

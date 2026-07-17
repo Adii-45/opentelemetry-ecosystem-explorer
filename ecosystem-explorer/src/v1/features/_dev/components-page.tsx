@@ -42,6 +42,7 @@ import {
   Pagination,
   SortDropdown,
 } from "@/v1/components/list/controls";
+import { CardView, CompactList, TableView, type ListRow } from "@/v1/components/list/views";
 import { DEFAULT_FILTERS, activeFilterCount, type ListFilters } from "@/v1/lib/list-filters";
 import { type PipelineStage, PipelineAnatomy } from "@/v1/components/ecosystem/pipeline-anatomy";
 import { QuickEntryRow } from "@/v1/components/ecosystem/quick-entry-row";
@@ -138,6 +139,68 @@ const CATEGORY_STAGES: PipelineStage[] = [
     count: 6,
     description: "gRPC & service calls",
     href: "/java-agent/components?category=rpc",
+  },
+];
+
+// Shared rows fixture for the three list-page density views. Types cover all
+// five TYPE_STRIPE_COLORS accents (resolved inside the views), stabilities
+// exercise the StatusPill variants, and the extension row has no description
+// or signals so the empty fallbacks render.
+const LIST_ROWS: ListRow[] = [
+  {
+    id: "otlp-receiver",
+    name: "otlpreceiver",
+    displayName: "OTLP Receiver",
+    type: "receiver",
+    distribution: "core",
+    description: "Receives telemetry via gRPC or HTTP in OTLP format.",
+    stability: "stable",
+    signals: ["traces", "metrics", "logs"],
+    href: "/collector/components?q=otlpreceiver",
+  },
+  {
+    id: "batch-processor",
+    name: "batchprocessor",
+    displayName: "Batch Processor",
+    type: "processor",
+    distribution: "core",
+    description: "Batches telemetry before export to reduce outgoing connections.",
+    stability: "beta",
+    signals: ["traces", "metrics", "logs"],
+    href: "/collector/components?q=batchprocessor",
+  },
+  {
+    id: "kafka-exporter",
+    name: "kafkaexporter",
+    displayName: "Kafka Exporter",
+    type: "exporter",
+    distribution: "contrib",
+    description: "Exports telemetry to Apache Kafka topics.",
+    stability: "alpha",
+    signals: ["traces", "metrics"],
+    href: "/collector/components?q=kafkaexporter",
+  },
+  {
+    id: "count-connector",
+    name: "countconnector",
+    displayName: "Count Connector",
+    type: "connector",
+    distribution: "contrib",
+    description: "Counts spans, data points, and log records into metrics.",
+    stability: "development",
+    signals: ["metrics"],
+    href: "/collector/components?q=countconnector",
+  },
+  {
+    id: "health-check-extension",
+    name: "healthcheckextension",
+    displayName: "Health Check",
+    type: "extension",
+    distribution: "core",
+    description: null,
+    stability: "deprecated",
+    signals: [],
+    href: "/collector/components?q=healthcheckextension",
   },
 ];
 
@@ -503,6 +566,18 @@ export function DevComponentsPage() {
             },
           ]}
         />
+      </Section>
+
+      <Section id="list-compact" title="CompactList (list page — compact density view)" bare>
+        <CompactList rows={LIST_ROWS} />
+      </Section>
+
+      <Section id="list-cards" title="CardView (list page — cards density view)" bare>
+        <CardView rows={LIST_ROWS} />
+      </Section>
+
+      <Section id="list-table" title="TableView (list page — table density view)" bare>
+        <TableView rows={LIST_ROWS} />
       </Section>
 
       <Section
