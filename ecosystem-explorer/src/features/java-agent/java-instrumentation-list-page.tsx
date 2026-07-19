@@ -369,9 +369,7 @@ export function JavaInstrumentationListPage() {
             {filteredInstrumentations.length === 0 ? (
               <div className="border-border/50 bg-card/30 flex min-h-[300px] items-center justify-center rounded-lg border">
                 <div className="text-center">
-                  <p className="text-muted-foreground text-base">
-                    {t("list.results.empty")}
-                  </p>
+                  <p className="text-muted-foreground text-base">{t("list.results.empty")}</p>
                   <p className="text-muted-foreground/70 mt-2 text-sm">
                     {t("list.results.emptySuggestion")}
                   </p>
