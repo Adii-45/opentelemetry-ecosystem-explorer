@@ -25,7 +25,20 @@ import { useVersions } from "@/hooks/use-javaagent-data";
 import { useReleaseComparison } from "./hooks/use-release-comparison";
 import { ReleaseVersionSelector } from "./components/release-comparison/release-version-selector";
 import { InstrumentationDiffCard } from "./components/release-comparison/instrumentation-diff-card";
+import {
+  ModuleStatusFilter,
+  type ModuleChangeStatus,
+} from "./components/release-comparison/module-status-filter";
 import { GlowBadge } from "@/components/ui/glow-badge";
+
+const VALID_MODULE_STATUSES: ModuleChangeStatus[] = ["added", "changed", "removed"];
+
+function parseStatusParam(value: string | null): ModuleChangeStatus | "" {
+  if (value && (VALID_MODULE_STATUSES as string[]).includes(value)) {
+    return value as ModuleChangeStatus;
+  }
+  return "";
+}
 
 export function JavaReleaseComparisonPage() {
   const { t } = useTranslation("java-agent");
@@ -69,10 +82,41 @@ export function JavaReleaseComparisonPage() {
     setSearchParams({ from: fromVersion, to: version });
   };
 
+  const statusFilter = useMemo(
+    () => parseStatusParam(searchParams.get("status")),
+    [searchParams]
+  );
+
+  const handleStatusFilterChange = (next: ModuleChangeStatus | "") => {
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (next) {
+          params.set("status", next);
+        } else {
+          params.delete("status");
+        }
+        return params;
+      },
+      { replace: false }
+    );
+  };
+
+  const hasAnyChanges = useMemo(() => {
+    if (!diff) return false;
+    return diff.instrumentations.some((i) => i.status !== "unchanged");
+  }, [diff]);
+
   const filteredInstrumentations = useMemo(() => {
     if (!diff) return [];
-    return diff.instrumentations.filter((i) => i.status !== "unchanged");
-  }, [diff]);
+    return diff.instrumentations.filter((i) => {
+      if (i.status === "unchanged") return false;
+      if (statusFilter && i.status !== statusFilter) return false;
+      return true;
+    });
+  }, [diff, statusFilter]);
+
+  const isFilteredEmpty = hasAnyChanges && filteredInstrumentations.length === 0;
 
   const isInvalidComparison = useMemo(() => {
     if (!fromVersion || !toVersion || versions.length === 0) return false;
@@ -292,16 +336,24 @@ export function JavaReleaseComparisonPage() {
                   aria-labelledby="tab-changes"
                   className="space-y-6"
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
                     <h2 className="text-2xl font-bold">{t("releaseComparison.moduleChanges")}</h2>
-                    <div className="bg-muted/50 text-foreground/70 rounded-full px-4 py-1 text-xs font-bold">
-                      {t("releaseComparison.modulesImpacted", {
-                        count: filteredInstrumentations.length,
-                      })}
+                    <div className="flex items-center gap-3">
+                      {hasAnyChanges && (
+                        <ModuleStatusFilter
+                          value={statusFilter}
+                          onChange={handleStatusFilterChange}
+                        />
+                      )}
+                      <div className="bg-muted/50 text-foreground/70 rounded-full px-4 py-1 text-xs font-bold">
+                        {t("releaseComparison.modulesImpacted", {
+                          count: filteredInstrumentations.length,
+                        })}
+                      </div>
                     </div>
                   </div>
 
-                  {filteredInstrumentations.length === 0 ? (
+                  {!hasAnyChanges ? (
                     <div className="border-border flex min-h-[300px] items-center justify-center rounded-2xl border border-dashed">
                       <div className="text-center">
                         <p className="text-muted-foreground text-lg">
@@ -310,6 +362,23 @@ export function JavaReleaseComparisonPage() {
                         <p className="text-muted-foreground/60 mt-1 text-sm">
                           {t("releaseComparison.noChangesDesc")}
                         </p>
+                      </div>
+                    </div>
+                  ) : isFilteredEmpty ? (
+                    <div className="border-border flex min-h-[300px] items-center justify-center rounded-2xl border border-dashed">
+                      <div className="text-center">
+                        <p className="text-muted-foreground text-lg">
+                          {t("releaseComparison.noFilteredResults")}
+                        </p>
+                        <p className="text-muted-foreground/60 mt-1 text-sm">
+                          {t("releaseComparison.noFilteredResultsDesc")}
+                        </p>
+                        <button
+                          onClick={() => handleStatusFilterChange("")}
+                          className="text-primary mt-4 text-sm font-semibold hover:underline"
+                        >
+                          {t("filter.reset")}
+                        </button>
                       </div>
                     </div>
                   ) : (
