@@ -227,8 +227,6 @@ describe("JavaReleaseComparisonPage status filter", () => {
 
     renderPage();
 
-    expect(
-      screen.getByText("No changes found in telemetry or configuration.")
-    ).toBeInTheDocument();
+    expect(screen.getByText("No changes found in telemetry or configuration.")).toBeInTheDocument();
   });
 });

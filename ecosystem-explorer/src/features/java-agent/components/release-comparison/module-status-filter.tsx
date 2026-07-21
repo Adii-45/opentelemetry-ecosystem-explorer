@@ -60,7 +60,10 @@ export function ModuleStatusFilter({ value, onChange }: ModuleStatusFilterProps)
             sideOffset={8}
             className="border-border/60 bg-background/95 ring-border/5 z-[100] min-w-[8rem] overflow-hidden rounded-lg border p-1 shadow-xl ring-1 backdrop-blur-md"
           >
-            <DropdownMenu.Item className={itemClassName(value === "")} onSelect={() => onChange("")}>
+            <DropdownMenu.Item
+              className={itemClassName(value === "")}
+              onSelect={() => onChange("")}
+            >
               <span>{t("filter.status.all")}</span>
               {value === "" && <Check className="h-4 w-4" aria-hidden="true" />}
             </DropdownMenu.Item>

@@ -82,10 +82,7 @@ export function JavaReleaseComparisonPage() {
     setSearchParams({ from: fromVersion, to: version });
   };
 
-  const statusFilter = useMemo(
-    () => parseStatusParam(searchParams.get("status")),
-    [searchParams]
-  );
+  const statusFilter = useMemo(() => parseStatusParam(searchParams.get("status")), [searchParams]);
 
   const handleStatusFilterChange = (next: ModuleChangeStatus | "") => {
     setSearchParams(
