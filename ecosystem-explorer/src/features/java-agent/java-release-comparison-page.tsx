@@ -57,9 +57,15 @@ export function JavaReleaseComparisonPage() {
   useEffect(() => {
     if (versions.length > 0 && (!searchParams.get("from") || !searchParams.get("to"))) {
       setSearchParams(
-        {
-          from: fromVersion || versions[Math.min(1, versions.length - 1)].version,
-          to: toVersion || versions[0].version,
+        (prev) => {
+          const params = new URLSearchParams(prev);
+          if (!params.has("from")) {
+            params.set("from", fromVersion || versions[Math.min(1, versions.length - 1)].version);
+          }
+          if (!params.has("to")) {
+            params.set("to", toVersion || versions[0].version);
+          }
+          return params;
         },
         { replace: true }
       );
@@ -75,11 +81,21 @@ export function JavaReleaseComparisonPage() {
   } = useReleaseComparison(fromVersion, toVersion, validVersionStrings);
 
   const handleFromVersionChange = (version: string) => {
-    setSearchParams({ from: version, to: toVersion });
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev);
+      params.set("from", version);
+      params.set("to", toVersion);
+      return params;
+    });
   };
 
   const handleToVersionChange = (version: string) => {
-    setSearchParams({ from: fromVersion, to: version });
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev);
+      params.set("from", fromVersion);
+      params.set("to", version);
+      return params;
+    });
   };
 
   const statusFilter = useMemo(() => parseStatusParam(searchParams.get("status")), [searchParams]);

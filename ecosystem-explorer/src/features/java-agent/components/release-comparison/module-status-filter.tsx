@@ -44,10 +44,14 @@ export function ModuleStatusFilter({ value, onChange }: ModuleStatusFilterProps)
       >
         {t("filter.status.label")}
       </span>
+      <span id="module-status-filter-value" className="sr-only">
+        {currentLabel}
+      </span>
 
       <DropdownMenu.Root>
         <DropdownMenu.Trigger
           aria-labelledby="module-status-filter-label"
+          aria-describedby="module-status-filter-value"
           className="border-border/60 bg-card text-foreground hover:border-primary/40 focus:border-primary/50 focus:ring-primary/20 flex cursor-pointer items-center gap-1 rounded-md border px-3 py-2 text-sm font-medium shadow-sm transition-all duration-200 focus:ring-2 focus:outline-none"
         >
           <span>{currentLabel}</span>

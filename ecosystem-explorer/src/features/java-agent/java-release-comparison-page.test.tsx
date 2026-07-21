@@ -229,4 +229,22 @@ describe("JavaReleaseComparisonPage status filter", () => {
 
     expect(screen.getByText("No changes found in telemetry or configuration.")).toBeInTheDocument();
   });
+
+  it("preserves status filter parameter when auto-filling missing from/to versions", () => {
+    renderPage("/java-agent/releases?status=added");
+
+    expect(screen.getByTestId("location").textContent).toContain("status=added");
+    expect(screen.getByTestId("location").textContent).toContain("from=1.0.0");
+    expect(screen.getByTestId("location").textContent).toContain("to=2.0.0");
+  });
+
+  it("preserves status filter parameter when changing version selection", async () => {
+    const user = userEvent.setup();
+    renderPage("/java-agent/releases?from=1.0.0&to=2.0.0&status=added");
+
+    const selectors = screen.getAllByRole("combobox");
+    await user.selectOptions(selectors[0], "2.0.0");
+
+    expect(screen.getByTestId("location").textContent).toContain("status=added");
+  });
 });
