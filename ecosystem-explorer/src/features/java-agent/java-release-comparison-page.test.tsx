@@ -69,13 +69,30 @@ const mockVersions = {
 
 function makeInstrumentation(
   id: string,
-  status: InstrumentationDiff["status"]
+  status: InstrumentationDiff["status"],
+  telemetry: { spans?: number; metrics?: number } = {}
 ): InstrumentationDiff {
+  const { spans = 0, metrics = 0 } = telemetry;
   return {
     id,
     displayName: `${id} Display`,
     status,
-    telemetryDiff: { metrics: [], spans: [] },
+    telemetryDiff: {
+      spans: Array.from({ length: spans }, () => ({
+        status: "unchanged" as const,
+        span: { span_kind: "CLIENT" as const },
+      })),
+      metrics: Array.from({ length: metrics }, (_, i) => ({
+        status: "unchanged" as const,
+        metric: {
+          name: `metric-${i}`,
+          description: "",
+          instrument: "counter" as const,
+          data_type: "COUNTER" as const,
+          unit: "1",
+        },
+      })),
+    },
   };
 }
 
@@ -246,5 +263,170 @@ describe("JavaReleaseComparisonPage status filter", () => {
     await user.selectOptions(selectors[0], "2.0.0");
 
     expect(screen.getByTestId("location").textContent).toContain("status=added");
+  });
+});
+
+describe("JavaReleaseComparisonPage telemetry filter", () => {
+  function makeTelemetryDiff(): ReleaseDiff {
+    return {
+      fromVersion: "1.0.0",
+      toVersion: "2.0.0",
+      instrumentations: [
+        makeInstrumentation("spans-only", "changed", { spans: 1 }),
+        makeInstrumentation("metrics-only", "added", { metrics: 1 }),
+        makeInstrumentation("both", "changed", { spans: 1, metrics: 1 }),
+        makeInstrumentation("neither", "removed"),
+      ],
+      aggregateMetrics: [],
+      totals: { added: 1, changed: 2, removed: 1 },
+    };
+  }
+
+  beforeEach(() => {
+    vi.mocked(useVersions).mockReturnValue(mockVersions);
+    vi.mocked(useReleaseComparison).mockReturnValue({
+      diff: makeTelemetryDiff(),
+      loading: false,
+      error: null,
+    });
+  });
+
+  it("shows every module when no telemetry filter is applied", () => {
+    renderPage();
+
+    expect(screen.getByText("spans-only Display")).toBeInTheDocument();
+    expect(screen.getByText("metrics-only Display")).toBeInTheDocument();
+    expect(screen.getByText("both Display")).toBeInTheDocument();
+    expect(screen.getByText("neither Display")).toBeInTheDocument();
+  });
+
+  it("filters to modules exposing spans", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "Spans" }));
+
+    expect(screen.getByText("spans-only Display")).toBeInTheDocument();
+    expect(screen.getByText("both Display")).toBeInTheDocument();
+    expect(screen.queryByText("metrics-only Display")).not.toBeInTheDocument();
+    expect(screen.queryByText("neither Display")).not.toBeInTheDocument();
+    expect(screen.getByTestId("location").textContent).toContain("telemetry=spans");
+  });
+
+  it("filters to modules exposing metrics", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "Metrics" }));
+
+    expect(screen.getByText("metrics-only Display")).toBeInTheDocument();
+    expect(screen.getByText("both Display")).toBeInTheDocument();
+    expect(screen.queryByText("spans-only Display")).not.toBeInTheDocument();
+    expect(screen.queryByText("neither Display")).not.toBeInTheDocument();
+  });
+
+  it("applies AND logic when both Spans and Metrics are selected", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "Spans" }));
+    await user.click(screen.getByRole("button", { name: "Metrics" }));
+
+    expect(screen.getByText("both Display")).toBeInTheDocument();
+    expect(screen.queryByText("spans-only Display")).not.toBeInTheDocument();
+    expect(screen.queryByText("metrics-only Display")).not.toBeInTheDocument();
+    expect(screen.queryByText("neither Display")).not.toBeInTheDocument();
+    expect(screen.getByTestId("location").textContent).toContain("telemetry=spans%2Cmetrics");
+  });
+
+  it("clicking an active telemetry button deselects it", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    const spansButton = screen.getByRole("button", { name: "Spans" });
+    await user.click(spansButton);
+    expect(spansButton).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(spansButton);
+    expect(spansButton).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("location").textContent).not.toContain("telemetry=");
+  });
+
+  it("combines with the Status filter (AND across both filter dimensions)", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await selectStatus(user, "Changed");
+    await user.click(screen.getByRole("button", { name: "Spans" }));
+
+    // "both" is changed + has spans; "spans-only" is changed + has spans too.
+    expect(screen.getByText("both Display")).toBeInTheDocument();
+    expect(screen.getByText("spans-only Display")).toBeInTheDocument();
+    // "metrics-only" is added (not changed), "neither" has no spans.
+    expect(screen.queryByText("metrics-only Display")).not.toBeInTheDocument();
+    expect(screen.queryByText("neither Display")).not.toBeInTheDocument();
+
+    const location = screen.getByTestId("location").textContent;
+    expect(location).toContain("status=changed");
+    expect(location).toContain("telemetry=spans");
+  });
+
+  it("pre-filters the list when the telemetry param is present on initial load", () => {
+    renderPage("/java-agent/releases?from=1.0.0&to=2.0.0&telemetry=metrics");
+
+    expect(screen.getByText("metrics-only Display")).toBeInTheDocument();
+    expect(screen.getByText("both Display")).toBeInTheDocument();
+    expect(screen.queryByText("spans-only Display")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Metrics" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+  });
+
+  it("degrades gracefully to showing everything when the telemetry param is invalid", () => {
+    renderPage("/java-agent/releases?from=1.0.0&to=2.0.0&telemetry=logs,bogus");
+
+    expect(screen.getByText("spans-only Display")).toBeInTheDocument();
+    expect(screen.getByText("metrics-only Display")).toBeInTheDocument();
+    expect(screen.getByText("both Display")).toBeInTheDocument();
+    expect(screen.getByText("neither Display")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Spans" })).toHaveAttribute(
+      "aria-pressed",
+      "false"
+    );
+  });
+
+  it("does not change the Changes Summary stat tiles when a telemetry filter is applied", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    const addedTile = screen.getByText("Modules Added").previousSibling as HTMLElement;
+    const changedTile = screen.getByText("Modules Changed").previousSibling as HTMLElement;
+    const removedTile = screen.getByText("Modules Removed").previousSibling as HTMLElement;
+    const before = [addedTile.textContent, changedTile.textContent, removedTile.textContent];
+
+    await user.click(screen.getByRole("button", { name: "Spans" }));
+
+    const after = [addedTile.textContent, changedTile.textContent, removedTile.textContent];
+    expect(after).toEqual(before);
+  });
+
+  it("'Clear all' resets both the status and telemetry filters", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await selectStatus(user, "Removed");
+    await user.click(screen.getByRole("button", { name: "Metrics" }));
+
+    expect(screen.getByText("No modules match the selected filters.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Clear all" }));
+
+    expect(screen.getByTestId("location").textContent).not.toContain("status=");
+    expect(screen.getByTestId("location").textContent).not.toContain("telemetry=");
+    expect(screen.getByText("spans-only Display")).toBeInTheDocument();
+    expect(screen.getByText("metrics-only Display")).toBeInTheDocument();
+    expect(screen.getByText("both Display")).toBeInTheDocument();
+    expect(screen.getByText("neither Display")).toBeInTheDocument();
   });
 });
