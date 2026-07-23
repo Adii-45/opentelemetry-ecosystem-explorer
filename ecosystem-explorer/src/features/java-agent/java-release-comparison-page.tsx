@@ -173,8 +173,16 @@ export function JavaReleaseComparisonPage() {
     return diff.instrumentations.filter((i) => {
       if (i.status === "unchanged") return false;
       if (statusFilter && i.status !== statusFilter) return false;
-      if (telemetryFilter.has("spans") && i.telemetryDiff.spans.length === 0) return false;
-      if (telemetryFilter.has("metrics") && i.telemetryDiff.metrics.length === 0) return false;
+      if (
+        telemetryFilter.has("spans") &&
+        i.telemetryDiff.spans.filter((s) => s.status !== "unchanged").length === 0
+      )
+        return false;
+      if (
+        telemetryFilter.has("metrics") &&
+        i.telemetryDiff.metrics.filter((m) => m.status !== "unchanged").length === 0
+      )
+        return false;
       return true;
     });
   }, [diff, statusFilter, telemetryFilter]);

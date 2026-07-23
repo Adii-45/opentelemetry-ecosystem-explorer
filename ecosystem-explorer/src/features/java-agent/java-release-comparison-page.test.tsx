@@ -79,11 +79,11 @@ function makeInstrumentation(
     status,
     telemetryDiff: {
       spans: Array.from({ length: spans }, () => ({
-        status: "unchanged" as const,
+        status: "changed" as const,
         span: { span_kind: "CLIENT" as const },
       })),
       metrics: Array.from({ length: metrics }, (_, i) => ({
-        status: "unchanged" as const,
+        status: "changed" as const,
         metric: {
           name: `metric-${i}`,
           description: "",
@@ -422,5 +422,55 @@ describe("JavaReleaseComparisonPage telemetry filter", () => {
     expect(screen.getByText("metrics-only Display")).toBeInTheDocument();
     expect(screen.getByText("both Display")).toBeInTheDocument();
     expect(screen.getByText("neither Display")).toBeInTheDocument();
+  });
+
+  it("excludes a module with only unchanged metrics from the Metrics filter, but includes it under Spans (JDBC regression)", async () => {
+    const user = userEvent.setup();
+    // Reproduces the reported bug: a module whose metrics are present in both
+    // versions but never changed, alongside a real span change. Selecting
+    // "Metrics" must NOT show it (no metric actually changed); selecting
+    // "Spans" must show it.
+    const jdbcLike: InstrumentationDiff = {
+      id: "jdbc-like",
+      displayName: "JDBC-like Display",
+      status: "changed",
+      telemetryDiff: {
+        metrics: [
+          {
+            status: "unchanged",
+            metric: {
+              name: "db.client.connections.usage",
+              description: "",
+              instrument: "counter",
+              data_type: "COUNTER",
+              unit: "1",
+            },
+          },
+        ],
+        spans: [{ status: "changed", span: { span_kind: "CLIENT" } }],
+      },
+    };
+
+    vi.mocked(useReleaseComparison).mockReturnValue({
+      diff: {
+        fromVersion: "1.0.0",
+        toVersion: "2.0.0",
+        instrumentations: [jdbcLike],
+        aggregateMetrics: [],
+        totals: { added: 0, changed: 1, removed: 0 },
+      },
+      loading: false,
+      error: null,
+    });
+    renderPage();
+
+    expect(screen.getByText("JDBC-like Display")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Metrics" }));
+    expect(screen.queryByText("JDBC-like Display")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Metrics" }));
+    await user.click(screen.getByRole("button", { name: "Spans" }));
+    expect(screen.getByText("JDBC-like Display")).toBeInTheDocument();
   });
 });
