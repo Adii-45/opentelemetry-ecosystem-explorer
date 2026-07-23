@@ -31,10 +31,7 @@ describe("TelemetryFilter", () => {
   it("reflects selected types via aria-pressed", () => {
     render(<TelemetryFilter value={new Set(["spans"])} onChange={vi.fn()} />);
 
-    expect(screen.getByRole("button", { name: "Spans" })).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
+    expect(screen.getByRole("button", { name: "Spans" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Metrics" })).toHaveAttribute(
       "aria-pressed",
       "false"

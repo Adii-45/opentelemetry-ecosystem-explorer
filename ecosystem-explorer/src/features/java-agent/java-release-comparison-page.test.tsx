@@ -377,10 +377,7 @@ describe("JavaReleaseComparisonPage telemetry filter", () => {
     expect(screen.getByText("metrics-only Display")).toBeInTheDocument();
     expect(screen.getByText("both Display")).toBeInTheDocument();
     expect(screen.queryByText("spans-only Display")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Metrics" })).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
+    expect(screen.getByRole("button", { name: "Metrics" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("degrades gracefully to showing everything when the telemetry param is invalid", () => {
@@ -390,10 +387,7 @@ describe("JavaReleaseComparisonPage telemetry filter", () => {
     expect(screen.getByText("metrics-only Display")).toBeInTheDocument();
     expect(screen.getByText("both Display")).toBeInTheDocument();
     expect(screen.getByText("neither Display")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Spans" })).toHaveAttribute(
-      "aria-pressed",
-      "false"
-    );
+    expect(screen.getByRole("button", { name: "Spans" })).toHaveAttribute("aria-pressed", "false");
   });
 
   it("does not change the Changes Summary stat tiles when a telemetry filter is applied", async () => {
