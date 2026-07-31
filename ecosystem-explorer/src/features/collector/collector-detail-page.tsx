@@ -266,9 +266,9 @@ export function CollectorDetailPage() {
                 <div className="grid gap-6 md:grid-cols-2">
                   <DetailCard withGrid>
                     <div className="space-y-4">
-                      <h3 className="border-border/50 mb-4 border-b pb-2 text-lg font-semibold">
+                      <h2 className="border-border/50 mb-4 border-b pb-2 text-lg font-semibold">
                         {t("detail.sections.componentInfo")}
-                      </h3>
+                      </h2>
                       <div>
                         <h4 className="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
                           {t("detail.labels.type")}
@@ -308,9 +308,9 @@ export function CollectorDetailPage() {
 
                   <DetailCard>
                     <div className="space-y-4">
-                      <h3 className="border-border/50 mb-4 border-b pb-2 text-lg font-semibold">
+                      <h2 className="border-border/50 mb-4 border-b pb-2 text-lg font-semibold">
                         {t("detail.sections.linksResources")}
-                      </h3>
+                      </h2>
                       <a
                         href={`https://github.com/open-telemetry/${component.repository}/tree/main/${component.type}/${component.name}`}
                         target="_blank"
@@ -333,9 +333,7 @@ export function CollectorDetailPage() {
                 {component.status?.distributions && component.status.distributions.length > 0 ? (
                   <div className="space-y-6">
                     <div>
-                      <SectionHeader>
-                        {t("detail.sections.distributionAvailability")}
-                      </SectionHeader>
+                      <SectionHeader>{t("detail.sections.distributionAvailability")}</SectionHeader>
                       <p className="text-muted-foreground mt-2 text-sm">
                         {t("detail.distributions.packaged")}
                       </p>
@@ -350,18 +348,14 @@ export function CollectorDetailPage() {
                             className="border-border/60 bg-card flex flex-col justify-between rounded-lg border p-5 shadow-sm"
                           >
                             <div>
-                              <h3 className="mb-2 text-lg font-bold capitalize">
-                                {distInfo.name}
-                              </h3>
+                              <h3 className="mb-2 text-lg font-bold capitalize">{distInfo.name}</h3>
                               <p className="text-muted-foreground mb-4 text-sm">{distInfo.desc}</p>
                             </div>
 
                             <div className="mt-auto space-y-3">
                               {distInfo.cmd && (
                                 <div className="bg-muted text-foreground overflow-x-auto rounded-md p-3 font-mono text-xs">
-                                  <span className="text-muted-foreground">
-                                    {distInfo.cmdLabel}
-                                  </span>
+                                  <span className="text-muted-foreground">{distInfo.cmdLabel}</span>
                                   <br />
                                   {distInfo.cmd}
                                 </div>
