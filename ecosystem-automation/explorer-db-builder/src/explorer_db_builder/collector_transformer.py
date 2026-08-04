@@ -124,6 +124,10 @@ def transform_collector_components(
             if metrics:
                 component["metrics"] = metrics
 
+            feature_gates = metadata.get("feature_gates")
+            if feature_gates:
+                component["feature_gates"] = feature_gates
+
             if name in readme_map:
                 component["markdown_hash"] = readme_map[name]
 
