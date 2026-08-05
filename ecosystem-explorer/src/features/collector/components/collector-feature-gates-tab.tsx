@@ -122,13 +122,13 @@ export function CollectorFeatureGatesTab({ featureGates }: CollectorFeatureGates
                       )}
                       {gate.to_version && (
                         <span className="border-border/30 bg-muted/40 rounded border px-2 py-1 text-xs font-medium">
-                          {t("detail.featureGatesTab.removedIn", { version: gate.to_version })}
+                          {t("detail.featureGatesTab.stableIn", { version: gate.to_version })}
                         </span>
                       )}
                     </div>
                   )}
 
-                  {gate.reference_url && (
+                  {gate.reference_url && /^https?:\/\//i.test(gate.reference_url) && (
                     <a
                       href={gate.reference_url}
                       target="_blank"

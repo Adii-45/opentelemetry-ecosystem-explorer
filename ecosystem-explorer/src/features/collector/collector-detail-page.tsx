@@ -495,7 +495,7 @@ export function CollectorDetailPage() {
 
             {component.feature_gates && component.feature_gates.length > 0 && (
               <TabsContent value="feature-gates" className="mt-0 p-6">
-                <CollectorFeatureGatesTab featureGates={component.feature_gates} />
+                <CollectorFeatureGatesTab key={`${component.id}-${version}`} featureGates={component.feature_gates} />
               </TabsContent>
             )}
 

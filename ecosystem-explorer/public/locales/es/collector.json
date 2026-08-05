@@ -262,7 +262,7 @@
     },
     "featureGatesTab": {
       "introducedIn": "Introducido en {{version}}",
-      "removedIn": "Eliminado en {{version}}",
+      "stableIn": "Estable en {{version}}",
       "reference": "Referencia"
     }
   },

@@ -69,10 +69,10 @@ describe("CollectorFeatureGatesTab", () => {
     expect(screen.getByText("Disables semconv legacy HTTP attributes.")).toBeInTheDocument();
   });
 
-  it("shows introduced-in and removed-in version pills when present", () => {
+  it("shows introduced-in and stable-in version pills when present", () => {
     render(<CollectorFeatureGatesTab featureGates={[fullGate]} />);
     expect(screen.getByText("Introduced in v0.158.0")).toBeInTheDocument();
-    expect(screen.getByText("Removed in v0.160.0")).toBeInTheDocument();
+    expect(screen.getByText("Stable in v0.160.0")).toBeInTheDocument();
   });
 
   it("shows a reference link when reference_url is present", () => {
@@ -88,7 +88,7 @@ describe("CollectorFeatureGatesTab", () => {
     render(<CollectorFeatureGatesTab featureGates={[minimalGate]} />);
     expect(screen.getByText("receiver.awsxray.MinimalGate")).toBeInTheDocument();
     expect(screen.queryByText(/introduced in/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/removed in/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/stable in/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /reference/i })).not.toBeInTheDocument();
   });
 

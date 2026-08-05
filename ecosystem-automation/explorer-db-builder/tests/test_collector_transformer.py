@@ -159,6 +159,39 @@ class TestTransformCollectorComponents:
                     }
                 ],
                 "processor": [],
+                "exporter": [],
+                "connector": [],
+                "extension": [],
+            }
+        )
+
+        result = transform_collector_components(inventory, "contrib")
+
+        assert len(result) == 1
+        component = result[0]
+        assert "feature_gates" in component
+        assert component["feature_gates"][0]["id"] == "receiver.awsxray.DontEmitV1HttpConventions"
+
+    def test_feature_gates_omitted_when_empty_list(self):
+        inventory = _make_inventory(
+            components={
+                "receiver": [
+                    {
+                        "name": "otlpreceiver",
+                        "metadata": {"status": {}, "feature_gates": []},
+                    }
+                ],
+                "processor": [],
+                "exporter": [],
+                "connector": [],
+                "extension": [],
+            }
+        )
+
+        result = transform_collector_components(inventory, "contrib")
+
+        assert "feature_gates" not in result[0]
+
     def test_telemetry_included(self):
         inventory = _make_inventory(
             components={
@@ -191,18 +224,6 @@ class TestTransformCollectorComponents:
 
         assert len(result) == 1
         component = result[0]
-        assert "feature_gates" in component
-        assert component["feature_gates"][0]["id"] == "receiver.awsxray.DontEmitV1HttpConventions"
-
-    def test_feature_gates_omitted_when_empty_list(self):
-        inventory = _make_inventory(
-            components={
-                "receiver": [
-                    {
-                        "name": "otlpreceiver",
-                        "metadata": {"status": {}, "feature_gates": []},
-                    }
-                ],
         assert "telemetry" in component
         assert "processor_memory_limiter_refused_spans" in component["telemetry"]["metrics"]
 
@@ -217,9 +238,6 @@ class TestTransformCollectorComponents:
             }
         )
 
-        result = transform_collector_components(inventory, "contrib")
-
-        assert "feature_gates" not in result[0]
         result = transform_collector_components(inventory, "core")
 
         assert "telemetry" not in result[0]
