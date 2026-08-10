@@ -263,6 +263,7 @@
     "featureGatesTab": {
       "introducedIn": "Introduced in {{version}}",
       "stableIn": "Stable in {{version}}",
+      "deprecatedIn": "Deprecated in {{version}}",
       "reference": "Reference"
     }
   },

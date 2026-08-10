@@ -122,7 +122,12 @@ export function CollectorFeatureGatesTab({ featureGates }: CollectorFeatureGates
                       )}
                       {gate.to_version && (
                         <span className="border-border/30 bg-muted/40 rounded border px-2 py-1 text-xs font-medium">
-                          {t("detail.featureGatesTab.stableIn", { version: gate.to_version })}
+                          {t(
+                            gate.stage === "deprecated"
+                              ? "detail.featureGatesTab.deprecatedIn"
+                              : "detail.featureGatesTab.stableIn",
+                            { version: gate.to_version }
+                          )}
                         </span>
                       )}
                     </div>

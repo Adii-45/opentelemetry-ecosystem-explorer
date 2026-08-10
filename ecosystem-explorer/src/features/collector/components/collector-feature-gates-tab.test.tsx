@@ -75,6 +75,18 @@ describe("CollectorFeatureGatesTab", () => {
     expect(screen.getByText("Stable in v0.160.0")).toBeInTheDocument();
   });
 
+  it("shows introduced-in and deprecated-in version pills when stage is deprecated", () => {
+    const deprecatedGate: FeatureGate = {
+      id: "receiver.awsxray.DeprecatedGate",
+      stage: "deprecated",
+      from_version: "v0.158.0",
+      to_version: "v0.160.0",
+    };
+    render(<CollectorFeatureGatesTab featureGates={[deprecatedGate]} />);
+    expect(screen.getByText("Introduced in v0.158.0")).toBeInTheDocument();
+    expect(screen.getByText("Deprecated in v0.160.0")).toBeInTheDocument();
+  });
+
   it("shows a reference link when reference_url is present", () => {
     render(<CollectorFeatureGatesTab featureGates={[fullGate]} />);
     const link = screen.getByRole("link", { name: /reference/i });
