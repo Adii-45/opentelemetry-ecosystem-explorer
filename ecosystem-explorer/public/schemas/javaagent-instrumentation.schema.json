@@ -130,7 +130,6 @@
                 }
               },
               "properties": {
-                "description": "Construct a type with a set of properties K of type T",
                 "type": "object",
                 "propertyOrder": []
               }
