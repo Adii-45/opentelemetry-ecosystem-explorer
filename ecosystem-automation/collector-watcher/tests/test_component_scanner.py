@@ -14,8 +14,6 @@
 #
 """Tests for component scanner."""
 
-import shutil
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -23,10 +21,9 @@ from collector_watcher.component_scanner import ComponentScanner
 
 
 @pytest.fixture
-def mock_repo():
+def mock_repo(tmp_path):
     """Create a temporary mock repository structure."""
-    temp_dir = tempfile.mkdtemp()
-    repo_path = Path(temp_dir)
+    repo_path = tmp_path
 
     receiver_with_meta = repo_path / "receiver" / "otlpreceiver"
     receiver_with_meta.mkdir(parents=True)
@@ -63,9 +60,7 @@ def mock_repo():
     hidden_dir.mkdir(parents=True)
     (hidden_dir / "go.mod").touch()
 
-    yield repo_path
-
-    shutil.rmtree(temp_dir)
+    return repo_path
 
 
 def test_scan_receivers(mock_repo):
@@ -127,10 +122,9 @@ def test_scan_all_components(mock_repo):
 
 
 @pytest.fixture
-def mock_repo_with_nested():
+def mock_repo_with_nested(tmp_path):
     """Create a temporary mock repository with nested extension directories."""
-    temp_dir = tempfile.mkdtemp()
-    repo_path = Path(temp_dir)
+    repo_path = tmp_path
 
     # Create a regular extension
     regular_ext = repo_path / "extension" / "healthcheckextension"
@@ -176,10 +170,7 @@ def mock_repo_with_nested():
     internal_dir.mkdir(parents=True)
     (internal_dir / "go.mod").touch()
 
-    yield repo_path
-
-    # Cleanup
-    shutil.rmtree(temp_dir)
+    return repo_path
 
 
 def test_scan_nested_encoding_extensions(mock_repo_with_nested):
@@ -282,10 +273,9 @@ def test_scan_empty_component_type_directory(mock_repo):
 
 
 @pytest.fixture
-def mock_repo_with_class_metadata():
+def mock_repo_with_class_metadata(tmp_path):
     """Mock repo covering status.class match / mismatch / absence for a top-level type."""
-    temp_dir = tempfile.mkdtemp()
-    repo_path = Path(temp_dir)
+    repo_path = tmp_path
 
     # Real component: status.class matches its directory's component_type.
     real_receiver = repo_path / "receiver" / "otlpreceiver"
@@ -311,9 +301,13 @@ def mock_repo_with_class_metadata():
     (no_status_receiver / "go.mod").touch()
     (no_status_receiver / "metadata.yaml").write_text("type: nostatus\n")
 
-    yield repo_path
+    # metadata.yaml present with non-dict status block (e.g. string): must fail open.
+    non_dict_status_receiver = repo_path / "receiver" / "nondictstatusreceiver"
+    non_dict_status_receiver.mkdir(parents=True)
+    (non_dict_status_receiver / "go.mod").touch()
+    (non_dict_status_receiver / "metadata.yaml").write_text("type: nondictstatus\nstatus: invalid_string\n")
 
-    shutil.rmtree(temp_dir)
+    return repo_path
 
 
 def test_excludes_pkg_class_component(mock_repo_with_class_metadata):
@@ -351,11 +345,19 @@ def test_includes_component_with_no_status_block(mock_repo_with_class_metadata):
     assert any(r["name"] == "nostatusreceiver" for r in receivers)
 
 
+def test_includes_component_with_non_dict_status(mock_repo_with_class_metadata):
+    """A component with a non-dict status field (e.g., status: string) must fail open
+    without raising an AttributeError when accessing status.class."""
+    scanner = ComponentScanner(str(mock_repo_with_class_metadata))
+    receivers = scanner.scan_component_type("receiver")
+
+    assert any(r["name"] == "nondictstatusreceiver" for r in receivers)
+
+
 @pytest.fixture
-def mock_repo_with_nested_class_metadata():
+def mock_repo_with_nested_class_metadata(tmp_path):
     """Mock repo covering status.class match / mismatch for a nested subtype directory."""
-    temp_dir = tempfile.mkdtemp()
-    repo_path = Path(temp_dir)
+    repo_path = tmp_path
 
     storage_dir = repo_path / "extension" / "storage"
     storage_dir.mkdir(parents=True)
@@ -373,9 +375,7 @@ def mock_repo_with_nested_class_metadata():
     (pkg_storage_ext / "go.mod").touch()
     (pkg_storage_ext / "metadata.yaml").write_text("type: xstorage\nstatus:\n  class: pkg\n")
 
-    yield repo_path
-
-    shutil.rmtree(temp_dir)
+    return repo_path
 
 
 def test_nested_component_with_matching_parent_class_included(mock_repo_with_nested_class_metadata):

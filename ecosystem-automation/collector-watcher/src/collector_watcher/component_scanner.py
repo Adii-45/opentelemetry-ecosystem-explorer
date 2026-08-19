@@ -255,7 +255,10 @@ class ComponentScanner:
         Returns:
             False only when ``status.class`` is present and differs from ``component_type``.
         """
-        status_class = (parsed_metadata.get("status") or {}).get("class")
+        status = parsed_metadata.get("status")
+        if not isinstance(status, dict):
+            return True
+        status_class = status.get("class")
         if status_class is None:
             return True
         return status_class == component_type
