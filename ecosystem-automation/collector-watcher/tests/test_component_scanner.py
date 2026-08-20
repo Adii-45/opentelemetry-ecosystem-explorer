@@ -14,8 +14,6 @@
 #
 """Tests for component scanner."""
 
-from pathlib import Path
-
 import pytest
 from collector_watcher.component_scanner import ComponentScanner
 
