@@ -105,13 +105,16 @@ jobs:
       - name: Run watcher
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ${{ inputs.watcher-command }}
+          WATCHER_COMMAND: ${{ inputs.watcher-command }}
+        run: $WATCHER_COMMAND
 
       - name: Check for inventory changes
         id: check_changes
+        env:
+          REGISTRY_PATH: ${{ inputs.registry-path }}
         run: |
-          git add -N ${{ inputs.registry-path }} 2>/dev/null || true
-          if git diff --quiet ${{ inputs.registry-path }} && [ -z "$(git ls-files --others --exclude-standard ${{ inputs.registry-path }})" ]; then
+          git add -N -- "$REGISTRY_PATH" 2>/dev/null || true
+          if git diff --quiet -- "$REGISTRY_PATH" && [ -z "$(git ls-files --others --exclude-standard -- "$REGISTRY_PATH")" ]; then
             echo "has_changes=false" >> $GITHUB_OUTPUT
           else
             echo "has_changes=true" >> $GITHUB_OUTPUT
@@ -126,25 +129,26 @@ jobs:
           BRANCH: ${{ inputs.branch-name }}
           PR_TITLE: ${{ inputs.pr-title }}
           PR_BODY: ${{ inputs.pr-body }}
+          REGISTRY_PATH: ${{ inputs.registry-path }}
         run: |
-          git add ${{ inputs.registry-path }}
+          git add -- "$REGISTRY_PATH"
 
           git commit -m "Update registry inventory"
 
-          git push -f origin HEAD:${BRANCH}
+          git push -f origin "HEAD:$BRANCH"
 
-          if gh pr list --head ${BRANCH} --state open --json number --jq '.[0].number' | grep -q .; then
+          if gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number' | grep -q .; then
             echo "Open PR already exists, updating..."
-            gh pr edit ${BRANCH} --title "${PR_TITLE}" --body "${PR_BODY}"
+            gh pr edit "$BRANCH" --title "$PR_TITLE" --body "$PR_BODY"
             # The force-push above is authenticated with GITHUB_TOKEN, which does
             # not start workflows, so CodeQL never re-runs for the new head and
             # the PR stays blocked on the "Code scanning results" merge rule.
             # Closing and reopening the PR with the otelbot App token emits a
             # `pull_request: reopened` event that re-runs the required checks
             # against the updated head.
-            gh pr close ${BRANCH}
-            gh pr reopen ${BRANCH}
+            gh pr close "$BRANCH"
+            gh pr reopen "$BRANCH"
           else
             echo "Creating new PR..."
-            gh pr create --title "${PR_TITLE}" --body "${PR_BODY}" --base main --head ${BRANCH}
+            gh pr create --title "$PR_TITLE" --body "$PR_BODY" --base main --head "$BRANCH"
           fi
