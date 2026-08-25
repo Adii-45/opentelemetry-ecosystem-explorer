@@ -28,6 +28,7 @@ jobs:
       registry-path: "ecosystem-registry/configuration/"
       branch-name: "otelbot/automated-inventory-update-configuration"
       pr-title: "[automated] Update configuration registry inventory"
+      cache-key-suffix: "configuration"
     secrets:
       OTELBOT_PRIVATE_KEY: ${{ secrets.OTELBOT_PRIVATE_KEY }}
 
@@ -37,7 +38,7 @@ jobs:
       contents: read # Checkout reusable workflow source
       issues: write # Open or comment on the configuration-watcher failure-tracking issue
     needs: [synchronize-inventory]
-    if: ${{ always() && !cancelled() && needs.synchronize-inventory.result != 'skipped' }}
+    if: ${{ !cancelled() && needs.synchronize-inventory.result != 'skipped' }}
     uses: ./.github/workflows/reusable-workflow-notification.yml
     with:
       success: ${{ needs.synchronize-inventory.result == 'success' }}

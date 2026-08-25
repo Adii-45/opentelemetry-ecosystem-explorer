@@ -28,17 +28,18 @@ jobs:
       registry-path: "ecosystem-registry/collector/"
       branch-name: "otelbot/automated-inventory-update-collector"
       pr-title: "[automated] Update collector registry inventory"
+      cache-key-suffix: "collector"
     secrets:
       OTELBOT_PRIVATE_KEY: ${{ secrets.OTELBOT_PRIVATE_KEY }}
 
   detect-schema-drift:
     name: Detect collector schema drift
-    if:
-      ${{ always() && !cancelled() && needs.synchronize-inventory.result != 'skipped' &&
+    if: >-
+      ${{ !cancelled() && needs.synchronize-inventory.result != 'skipped' &&
       (github.event_name != 'schedule' || github.repository ==
       'open-telemetry/opentelemetry-ecosystem-explorer') }}
     permissions:
-      contents: read # Checkout repository and collector source
+      contents: read # Checkout repository and read registry
       issues: write # Open or comment on the schema-drift tracking issue
     needs: [synchronize-inventory]
     runs-on: ubuntu-latest
@@ -48,29 +49,63 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Checkout opentelemetry-collector
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: open-telemetry/opentelemetry-collector
-          path: tmp_repos/opentelemetry-collector
-          persist-credentials: false
-
-      - name: Detect collector schema drift
-        id: detect_schema_drift
+      - name: Fetch upstream metadata-schema.yaml at latest release tag
+        id: fetch_schema
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          FRESH="tmp_repos/opentelemetry-collector/cmd/mdatagen/metadata-schema.yaml"
-          SCHEMAS_DIR="ecosystem-registry/collector/meta/schemas"
+          # Resolve the latest release tag for opentelemetry-collector, matching
+          # the watcher's schema-resolution logic (_core_schema_refs: exact tag first).
+          LATEST_TAG=$(gh api repos/open-telemetry/opentelemetry-collector/releases/latest \
+            --jq '.tag_name')
+          if [ -z "$LATEST_TAG" ]; then
+            echo "Could not determine latest collector release tag, skipping drift detection"
+            echo "schema_changed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "Fetching schema at tag: $LATEST_TAG"
 
-          if [ ! -f "$FRESH" ]; then
-            echo "Fresh schema not found in cloned repo, skipping drift detection"
+          SCHEMA_URL="https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector/${LATEST_TAG}/cmd/mdatagen/metadata-schema.yaml"
+          HTTP_STATUS=$(curl -fsSL -w "%{http_code}" -o /tmp/metadata-schema-fresh.yaml "$SCHEMA_URL")
+          if [ "$HTTP_STATUS" != "200" ] || [ ! -s /tmp/metadata-schema-fresh.yaml ]; then
+            echo "Schema file not found at $LATEST_TAG (HTTP $HTTP_STATUS), skipping drift detection"
             echo "schema_changed=false" >> $GITHUB_OUTPUT
             exit 0
           fi
 
+      - name: Detect collector schema drift
+        id: detect_schema_drift
+        run: |
+          FRESH="/tmp/metadata-schema-fresh.yaml"
+          SCHEMAS_DIR="ecosystem-registry/collector/meta/schemas"
+
+          if [ ! -f "$FRESH" ]; then
+            echo "Fresh schema not found, skipping drift detection"
+            echo "schema_changed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Compute the normalized hash using the same logic as CollectorSchemaCopier.compute_schema_hash():
+          # yaml.safe_load then yaml.safe_dump with pinned options, SHA-256 first 12 hex chars.
+          # This must stay in sync with schema_copier.py and content_hashing.py.
+          cat > /tmp/compute_schema_hash.py << 'PYEOF'
+          import sys, hashlib, yaml
+          content = open(sys.argv[1], encoding="utf-8").read()
+          data = yaml.safe_load(content)
+          normalized = yaml.safe_dump(
+              data,
+              sort_keys=True,
+              default_flow_style=False,
+              allow_unicode=True,
+              width=4096,
+          )
+          print(hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:12])
+          PYEOF
+          FRESH_HASH=$(python3 /tmp/compute_schema_hash.py "$FRESH")
+
           # Schemas are stored in CAS at meta/schemas/{hash}.yaml. If a file
           # already exists for the fresh content's hash, we've stored it
           # before — no drift.
-          FRESH_HASH=$(sha256sum "$FRESH" | cut -c1-12)
           if [ -f "$SCHEMAS_DIR/$FRESH_HASH.yaml" ]; then
             echo "schema_changed=false" >> $GITHUB_OUTPUT
             exit 0
@@ -172,9 +207,11 @@ jobs:
     permissions:
       contents: read # Checkout reusable workflow source
       issues: write # Open or comment on the collector-watcher failure-tracking issue
-    needs: [synchronize-inventory]
-    if: ${{ always() && !cancelled() && needs.synchronize-inventory.result != 'skipped' }}
+    needs: [synchronize-inventory, detect-schema-drift]
+    if: ${{ !cancelled() && needs.synchronize-inventory.result != 'skipped' }}
     uses: ./.github/workflows/reusable-workflow-notification.yml
     with:
-      success: ${{ needs.synchronize-inventory.result == 'success' }}
+      success: >-
+        ${{ needs.synchronize-inventory.result == 'success' &&
+        needs.detect-schema-drift.result == 'success' }}
       watcher-name: "collector-watcher"

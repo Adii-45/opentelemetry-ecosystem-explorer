@@ -28,6 +28,7 @@ jobs:
       registry-path: "ecosystem-registry/javascript/"
       branch-name: "otelbot/automated-inventory-update-js"
       pr-title: "[automated] Update js registry inventory"
+      cache-key-suffix: "js"
     secrets:
       OTELBOT_PRIVATE_KEY: ${{ secrets.OTELBOT_PRIVATE_KEY }}
 
@@ -37,7 +38,7 @@ jobs:
       contents: read # Checkout reusable workflow source
       issues: write # Open or comment on the js-instrumentation-watcher failure-tracking issue
     needs: [synchronize-inventory]
-    if: ${{ always() && !cancelled() && needs.synchronize-inventory.result != 'skipped' }}
+    if: ${{ !cancelled() && needs.synchronize-inventory.result != 'skipped' }}
     uses: ./.github/workflows/reusable-workflow-notification.yml
     with:
       success: ${{ needs.synchronize-inventory.result == 'success' }}
