@@ -22,8 +22,10 @@ last_updated: "2026-08-31"
 
 ## Phase 3: Watcher and Automation (Future)
 
-- [ ] Draft Phase 3 watcher architecture for extracting metadata from `pyproject.toml` and `package.py`
-- [ ] Implement parsing logic for supported versions (`instruments`, `instruments-any`, `_instruments`)
+- [ ] Draft Phase 3 watcher architecture for extracting metadata from `pyproject.toml` and
+      `package.py`
+- [ ] Implement parsing logic for supported versions (`instruments`, `instruments-any`,
+      `_instruments`)
 
 ## Later Phases (Future)
 
@@ -33,4 +35,5 @@ last_updated: "2026-08-31"
 ## Open Questions
 
 1. How should the Explorer visually represent Python's hybrid versioning model?
-2. Since telemetry metadata (spans/attributes) is thin, what is the minimum viable telemetry coverage required to display a package?
+2. Since telemetry metadata (spans/attributes) is thin, what is the minimum viable telemetry
+   coverage required to display a package?
