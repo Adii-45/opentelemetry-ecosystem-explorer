@@ -114,8 +114,8 @@ _(Note: This is a documented recommendation only. No changes are being made to
 
 ## Comparison with JavaScript
 
-Compared to the JavaScript ecosystem ([#9](../9-javascript-instrumentation/)), the Python
-ecosystem presents different challenges and opportunities:
+Compared to the JavaScript ecosystem ([#9](../9-javascript-instrumentation/)), the Python ecosystem
+presents different challenges and opportunities:
 
 - **Structured Metadata:** Python relies heavily on structured TOML (`pyproject.toml`) and code
   (`package.py`) metadata, whereas JS heavily relies on README scraping.
