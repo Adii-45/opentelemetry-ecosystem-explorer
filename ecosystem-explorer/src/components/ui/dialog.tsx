@@ -81,7 +81,7 @@ const DialogDescription = forwardRef<
 ));
 DialogDescription.displayName = RadixDialog.Description.displayName;
 
-// eslint-disable-next-line react-refresh/only-export-components -- re-exporting Radix component aliases
+/* eslint-disable react-refresh/only-export-components */
 export {
   Dialog,
   DialogPortal,
