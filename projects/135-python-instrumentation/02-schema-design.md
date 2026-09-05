@@ -25,8 +25,8 @@ The metadata audit ([`01-metadata-audit.md`](./01-metadata-audit.md)) establishe
   `package.py`) rather than relying on README scraping.
 - Individual package READMEs do not add metadata the Explorer needs beyond the structured sources.
 - Python instrumentation packages follow a **hybrid versioning model**: most release in lockstep
-  with the repository's release cadence, but a growing subset version independently. This is
-  neither Java's single aggregate version nor JavaScript's fully independent-per-package model.
+  with the repository's release cadence, but a growing subset version independently. This is neither
+  Java's single aggregate version nor JavaScript's fully independent-per-package model.
 - The audit recommended a **package-oriented representation** as the natural starting point, while
   explicitly accounting for the hybrid release model.
 
@@ -113,27 +113,27 @@ package legitimately has no value), matching this repository's existing conventi
 diff-friendly shape (`ecosystem-automation/AGENTS.md`: "all expected files must be present ... even
 if empty").
 
-| Field                        | Required | Meaning                                                                                     |
-| :---------------------------- | :------- | :-------------------------------------------------------------------------------------------- |
-| `name`                        | yes      | PyPI distribution name; also the `instrumentation/` directory name.                          |
-| `version`                     | yes      | This package's own resolved version for this file (see [§6](#6-versioning-model)).           |
-| `description`                 | yes      | One-line package summary.                                                                     |
-| `requires_python`             | yes      | Python version support constraint, as a PEP 440-style specifier string.                       |
-| `repository`                  | yes      | Constant: `open-telemetry/opentelemetry-python-contrib`.                                      |
-| `source_path`                 | yes      | Repo-relative path to the package directory.                                                  |
-| `homepage`                    | no       | Best-effort URL; `null` if not present in upstream metadata.                                  |
-| `instruments`                 | yes (`[]` if none) | Instrumented library/version-range entries this package targets.                    |
-| `entry_points`                | yes (`[]` if none) | Auto-instrumentation entry points this package registers.                           |
-| `semantic_convention_status`  | no       | Verbatim string mirror of `package.py`'s `_semconv_status`; `null` if the package doesn't define one. |
-| `supports_metrics`            | no       | Boolean mirror of `package.py`'s `_supports_metrics`; `null` if the package doesn't define one. |
+| Field                        | Required           | Meaning                                                                                               |
+| :--------------------------- | :----------------- | :---------------------------------------------------------------------------------------------------- |
+| `name`                       | yes                | PyPI distribution name; also the `instrumentation/` directory name.                                   |
+| `version`                    | yes                | This package's own resolved version for this file (see [§6](#6-versioning-model)).                    |
+| `description`                | yes                | One-line package summary.                                                                             |
+| `requires_python`            | yes                | Python version support constraint, as a PEP 440-style specifier string.                               |
+| `repository`                 | yes                | Constant: `open-telemetry/opentelemetry-python-contrib`.                                              |
+| `source_path`                | yes                | Repo-relative path to the package directory.                                                          |
+| `homepage`                   | no                 | Best-effort URL; `null` if not present in upstream metadata.                                          |
+| `instruments`                | yes (`[]` if none) | Instrumented library/version-range entries this package targets.                                      |
+| `entry_points`               | yes (`[]` if none) | Auto-instrumentation entry points this package registers.                                             |
+| `semantic_convention_status` | no                 | Verbatim string mirror of `package.py`'s `_semconv_status`; `null` if the package doesn't define one. |
+| `supports_metrics`           | no                 | Boolean mirror of `package.py`'s `_supports_metrics`; `null` if the package doesn't define one.       |
 
 Each `instruments` entry:
 
-| Field           | Meaning                                                                                       |
+| Field           | Meaning                                                                                         |
 | :-------------- | :---------------------------------------------------------------------------------------------- |
 | `library`       | Name of the instrumented third-party library/distribution.                                      |
 | `version_range` | Supported version range, stored as the raw specifier string from the source (not renormalized). |
-| `source_key`    | Which `pyproject.toml` key this entry came from: `instruments` or `instruments-any`.             |
+| `source_key`    | Which `pyproject.toml` key this entry came from: `instruments` or `instruments-any`.            |
 
 `source_key` is preserved rather than collapsed, because the audit did not establish the precise
 semantic difference between `instruments` and `instruments-any` — see
@@ -160,19 +160,19 @@ dotted class path).
 
 ## 5. Metadata source-of-truth mapping
 
-| Field                        | Primary source                                                        | Notes                                                                                      |
-| :---------------------------- | :---------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------- |
-| `name`                        | `pyproject.toml` (`[project.name]`)                                     | Matches the `instrumentation/` directory name.                                                |
-| `version`                     | `version.py` / package `__version__` (resolved)                        | Not read literally off `pyproject.toml`, which may declare the version as dynamic.            |
-| `description`                 | `pyproject.toml` (`[project.description]`)                              |                                                                                                 |
-| `requires_python`             | `pyproject.toml` (`requires-python`)                                    |                                                                                                 |
-| `instruments`                 | `pyproject.toml` (`[project.optional-dependencies].instruments` / `instruments-any`) | `package.py`'s `_instruments` duplicates this. Treated as a cross-check only, never primary — the audit found no CI enforcement guaranteeing the two stay in sync. |
-| `entry_points`                | `pyproject.toml` (`[project.entry-points.opentelemetry_instrumentor]`)  |                                                                                                 |
-| `semantic_convention_status`  | `package.py` (`_semconv_status`)                                        | No `pyproject.toml` equivalent identified.                                                     |
-| `supports_metrics`            | `package.py` (`_supports_metrics`)                                      | No `pyproject.toml` equivalent identified.                                                     |
-| `source_path`                 | Git tree (inferred, not read from a metadata file)                      |                                                                                                 |
-| `homepage`                    | `pyproject.toml` (`[project.urls]`)                                     | Exact key name (`Homepage`, `Repository`, etc.) varies by package; best-effort.                |
-| `repository`                  | Constant                                                                 | `open-telemetry/opentelemetry-python-contrib`, same convention as JS's `repository` field.     |
+| Field                        | Primary source                                                                       | Notes                                                                                                                                                              |
+| :--------------------------- | :----------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                       | `pyproject.toml` (`[project.name]`)                                                  | Matches the `instrumentation/` directory name.                                                                                                                     |
+| `version`                    | `version.py` / package `__version__` (resolved)                                      | Not read literally off `pyproject.toml`, which may declare the version as dynamic.                                                                                 |
+| `description`                | `pyproject.toml` (`[project.description]`)                                           |                                                                                                                                                                    |
+| `requires_python`            | `pyproject.toml` (`requires-python`)                                                 |                                                                                                                                                                    |
+| `instruments`                | `pyproject.toml` (`[project.optional-dependencies].instruments` / `instruments-any`) | `package.py`'s `_instruments` duplicates this. Treated as a cross-check only, never primary — the audit found no CI enforcement guaranteeing the two stay in sync. |
+| `entry_points`               | `pyproject.toml` (`[project.entry-points.opentelemetry_instrumentor]`)               |                                                                                                                                                                    |
+| `semantic_convention_status` | `package.py` (`_semconv_status`)                                                     | No `pyproject.toml` equivalent identified.                                                                                                                         |
+| `supports_metrics`           | `package.py` (`_supports_metrics`)                                                   | No `pyproject.toml` equivalent identified.                                                                                                                         |
+| `source_path`                | Git tree (inferred, not read from a metadata file)                                   |                                                                                                                                                                    |
+| `homepage`                   | `pyproject.toml` (`[project.urls]`)                                                  | Exact key name (`Homepage`, `Repository`, etc.) varies by package; best-effort.                                                                                    |
+| `repository`                 | Constant                                                                             | `open-telemetry/opentelemetry-python-contrib`, same convention as JS's `repository` field.                                                                         |
 
 **Source not used:** the generated `instrumentation/README.md` and individual package READMEs. The
 audit found they aggregate/duplicate the structured sources above without adding Explorer-relevant
@@ -182,7 +182,8 @@ data, so no field derives from README parsing.
 `instruments`, because it's the standard Python packaging-metadata mechanism and the source
 `explorer-db-builder`-facing consumers should expect. This is a design-time recommendation; the
 concrete reconciliation policy (e.g., whether to log a warning, skip the package, or prefer one
-source per field) is deferred to the watcher implementation ([open decision #2](#7-open-decisions-for-maintainers)).
+source per field) is deferred to the watcher implementation
+([open decision #2](#7-open-decisions-for-maintainers)).
 
 ## 6. Versioning model
 
@@ -206,10 +207,10 @@ never needs to know which case it's in.
 It would be tempting to add a field like `release_group` or `lockstep: true` to make the hybrid
 model visible in the data. This is deliberately **not** proposed, because:
 
-- The audit did not identify a reliable, structured upstream signal for "these packages are
-  released together by design" versus "these packages coincidentally share a version string right
-  now." Two packages can share a version string without being coupled, and the reverse — packages
-  that are coupled but whose versions have drifted — is also possible in principle.
+- The audit did not identify a reliable, structured upstream signal for "these packages are released
+  together by design" versus "these packages coincidentally share a version string right now." Two
+  packages can share a version string without being coupled, and the reverse — packages that are
+  coupled but whose versions have drifted — is also possible in principle.
 - Inventing such a field would encode an assumption the audit doesn't support, which issue #1064
   explicitly warns against: "avoid incorrectly treating a shared version number as proof that
   packages are always released together."
@@ -228,7 +229,7 @@ At one point in time, three packages might look like this (illustrative values):
 
 ```text
 python/opentelemetry-instrumentation-example-a/v0.48b0.yaml   # version: 0.48b0
-python/opentelemetry-instrumentation-example-b/v0.48b0.yaml   # version: 0.48b0 — shares a string with (a); not asserted as coupled
+python/opentelemetry-instrumentation-example-b/v0.48b0.yaml   # version: 0.48b0 — shares a string with (a); not coupled
 python/opentelemetry-instrumentation-example-c/v1.4.2.yaml    # version: 1.4.2  — independently versioned
 ```
 
@@ -250,8 +251,8 @@ denies a relationship between any of these three packages.
    is deferred to the watcher implementation, ideally verified against the full 47+ package set
    rather than the audit's 3-package sample.
 2. **Reconciliation policy when `pyproject.toml` and `package.py` disagree.** `pyproject.toml` is
-   recommended as primary (§5), but the audit found no CI enforcement guaranteeing agreement. Whether
-   divergence should be logged, block extraction, or silently prefer one source is a watcher
+   recommended as primary (§5), but the audit found no CI enforcement guaranteeing agreement.
+   Whether divergence should be logged, block extraction, or silently prefer one source is a watcher
    implementation decision.
 3. **Whether a structural lockstep-vs-independent signal exists.** For example, whether packages
    that version independently maintain their own `CHANGELOG.md` while lockstep packages rely on a
@@ -261,9 +262,9 @@ denies a relationship between any of these three packages.
    CODEOWNERS-equivalent for instrumentation packages.
 5. **Release-vs-snapshot extraction.** This document assumes extraction per published version
    (`v{version}.yaml`), consistent with how the JS watcher operates today. Whether Python should
-   also support a nightly `-SNAPSHOT` extraction from `main` (like Java/.NET/collector/configuration)
-   is a phase 3 watcher-design question; adding it later would not break this schema, since a
-   `SNAPSHOT` suffix is just another version string.
+   also support a nightly `-SNAPSHOT` extraction from `main` (like
+   Java/.NET/collector/configuration) is a phase 3 watcher-design question; adding it later would
+   not break this schema, since a `SNAPSHOT` suffix is just another version string.
 
 ## 8. Implications for the future watcher
 
