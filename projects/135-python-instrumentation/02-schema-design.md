@@ -4,7 +4,7 @@ issue: 135
 type: brief
 phase: 2
 status: complete
-last_updated: "2026-09-06"
+last_updated: "2026-09-05"
 ---
 
 Design proposal for how `opentelemetry-python-contrib` instrumentation packages should be
@@ -106,14 +106,18 @@ semantic_convention_status: null
 supports_metrics: null
 ```
 
-### Field definitions and required-ness
+### Field definitions and value requiredness
 
-All keys listed below are always present in a package-version file (using `null` or `[]` where a
-package legitimately has no value), matching this repository's existing convention of a stable,
-diff-friendly shape (`ecosystem-automation/AGENTS.md`: "all expected files must be present ... even
-if empty").
+Every field below is a key that is always structurally present in a package-version file — no key is
+ever omitted, matching this repository's existing convention of a stable, diff-friendly shape
+(`ecosystem-automation/AGENTS.md`: "all expected files must be present ... even if empty"). The
+**Value required** column is a separate axis from that structural presence: it describes whether the
+key's _value_ must be concrete and meaningful, or whether the value itself may legitimately be
+`null` (scalars) or `[]` (lists) when no reliable value exists. "No" describes the value, never the
+key — a "no" field still always appears in the file, just potentially holding `null` or `[]` rather
+than data.
 
-| Field                        | Required           | Meaning                                                                                               |
+| Field                        | Value required     | Meaning                                                                                               |
 | :--------------------------- | :----------------- | :---------------------------------------------------------------------------------------------------- |
 | `name`                       | yes                | PyPI distribution name; also the `instrumentation/` directory name.                                   |
 | `version`                    | yes                | This package's own resolved version for this file (see [§6](#6-versioning-model)).                    |
@@ -121,11 +125,11 @@ if empty").
 | `requires_python`            | yes                | Python version support constraint, as a PEP 440-style specifier string.                               |
 | `repository`                 | yes                | Constant: `open-telemetry/opentelemetry-python-contrib`.                                              |
 | `source_path`                | yes                | Repo-relative path to the package directory.                                                          |
-| `homepage`                   | no                 | Best-effort URL; `null` if not present in upstream metadata.                                          |
+| `homepage`                   | no (may be `null`) | Best-effort URL; `null` if not present in upstream metadata.                                          |
 | `instruments`                | yes (`[]` if none) | Instrumented library/version-range entries this package targets.                                      |
 | `entry_points`               | yes (`[]` if none) | Auto-instrumentation entry points this package registers.                                             |
-| `semantic_convention_status` | no                 | Verbatim string mirror of `package.py`'s `_semconv_status`; `null` if the package doesn't define one. |
-| `supports_metrics`           | no                 | Boolean mirror of `package.py`'s `_supports_metrics`; `null` if the package doesn't define one.       |
+| `semantic_convention_status` | no (may be `null`) | Verbatim string mirror of `package.py`'s `_semconv_status`; `null` if the package doesn't define one. |
+| `supports_metrics`           | no (may be `null`) | Boolean mirror of `package.py`'s `_supports_metrics`; `null` if the package doesn't define one.       |
 
 Each `instruments` entry:
 

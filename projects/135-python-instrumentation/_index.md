@@ -4,7 +4,7 @@ issue: 135
 type: index
 phase: 1
 status: in-progress
-last_updated: "2026-09-06"
+last_updated: "2026-09-05"
 ---
 
 Research into how Python instrumentation metadata can be collected and stored in the Ecosystem
