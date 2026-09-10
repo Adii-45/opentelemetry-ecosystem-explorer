@@ -158,7 +158,7 @@
                     "type": "string"
                   },
                   "aggregation_temporality": {
-                    "description": "Aggregation temporality (e.g., \"cumulative\", \"delta\"). Only present on sum metrics.",
+                    "description": "Aggregation temporality (e.g., \"cumulative\", \"delta\"), when applicable to this metric type.",
                     "type": "string"
                   },
                   "async": {
@@ -190,7 +190,7 @@
                 "type": "string"
               },
               "aggregation_temporality": {
-                "description": "Aggregation temporality (e.g., \"cumulative\", \"delta\"). Only present on sum metrics.",
+                "description": "Aggregation temporality (e.g., \"cumulative\", \"delta\"), when applicable to this metric type.",
                 "type": "string"
               },
               "async": {
@@ -213,7 +213,7 @@
                     "type": "string"
                   },
                   "aggregation_temporality": {
-                    "description": "Aggregation temporality (e.g., \"cumulative\", \"delta\"). Only present on sum metrics.",
+                    "description": "Aggregation temporality (e.g., \"cumulative\", \"delta\"), when applicable to this metric type.",
                     "type": "string"
                   },
                   "async": {
@@ -422,7 +422,7 @@
                         "type": "string"
                       },
                       "aggregation_temporality": {
-                        "description": "Aggregation temporality (e.g., \"cumulative\", \"delta\"). Only present on sum metrics.",
+                        "description": "Aggregation temporality (e.g., \"cumulative\", \"delta\"), when applicable to this metric type.",
                         "type": "string"
                       },
                       "async": {

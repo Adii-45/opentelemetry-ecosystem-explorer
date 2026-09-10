@@ -134,7 +134,7 @@ export interface CollectorMetric {
 export interface MetricValueDescriptor {
   /** The numeric type of the metric's data points. */
   value_type: string;
-  /** Aggregation temporality (e.g., "cumulative", "delta"). Only present on sum metrics. */
+  /** Aggregation temporality (e.g., "cumulative", "delta"), when applicable to this metric type. */
   aggregation_temporality?: string;
   /** Whether this metric is observed asynchronously. */
   async?: boolean;
