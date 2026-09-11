@@ -472,6 +472,38 @@ def test_has_metadata_disagreement_true_when_version_ranges_differ(repo, pkg_dir
     assert parser.has_metadata_disagreement() is True
 
 
+def test_has_metadata_disagreement_false_for_httpx_botocore_style_empty_instruments(repo, pkg_dir):
+    """Exact scenario from the PR #1099 review: real upstream packages like httpx and
+    botocore define `_instruments = ()` and put their actual requirements in
+    `_instruments_any`. Before the fix, comparing only `_instruments` against the
+    combined pyproject set compared an empty set against a populated one and always
+    falsely reported a disagreement for these packages.
+    """
+    write_pyproject(
+        pkg_dir,
+        """\
+        [project]
+        name = "opentelemetry-instrumentation-httpx"
+        version = "1.0.0"
+
+        [project.optional-dependencies]
+        instruments-any = ["httpx >= 0.18.0"]
+        """,
+    )
+    write_package_py(
+        pkg_dir,
+        """\
+        _instruments = ()
+        _instruments_any = ("httpx >= 0.18.0",)
+        """,
+    )
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_metadata_disagreement() is False
+
+
 def test_has_metadata_disagreement_true_when_library_sets_differ(repo, pkg_dir):
     write_pyproject(pkg_dir, BASIC_PYPROJECT)
     write_package_py(pkg_dir, '_instruments = ("flask >= 1.0", "werkzeug >= 1.0")\n')
@@ -480,6 +512,197 @@ def test_has_metadata_disagreement_true_when_library_sets_differ(repo, pkg_dir):
     parser.parse()
 
     assert parser.has_metadata_disagreement() is True
+
+
+def test_has_metadata_disagreement_false_when_package_py_only_mirrors_instruments_key(repo, pkg_dir):
+    """Regression test: package.py legitimately doesn't have to mirror `instruments-any`.
+
+    pyproject.toml declares both `instruments` and `instruments-any`; package.py only
+    defines `_instruments` (matching `instruments`). Before the fix, `_instruments` was
+    compared against the *combined* pyproject set, so this agreeing-but-partial package.py
+    was always falsely flagged as disagreeing.
+    """
+    write_pyproject(
+        pkg_dir,
+        """\
+        [project]
+        name = "opentelemetry-instrumentation-botocore"
+        version = "1.0.0"
+
+        [project.optional-dependencies]
+        instruments = ["botocore >= 1.0"]
+        instruments-any = ["boto3 >= 1.0", "aiobotocore >= 1.0"]
+        """,
+    )
+    write_package_py(pkg_dir, '_instruments = ("botocore >= 1.0",)\n')
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_metadata_disagreement() is False
+
+
+def test_has_metadata_disagreement_true_when_instruments_any_field_disagrees(repo, pkg_dir):
+    write_pyproject(
+        pkg_dir,
+        """\
+        [project]
+        name = "opentelemetry-instrumentation-botocore"
+        version = "1.0.0"
+
+        [project.optional-dependencies]
+        instruments = ["botocore >= 1.0"]
+        instruments-any = ["boto3 >= 1.0"]
+        """,
+    )
+    write_package_py(
+        pkg_dir,
+        """\
+        _instruments = ("botocore >= 1.0",)
+        _instruments_any = ("boto3 >= 2.0",)
+        """,
+    )
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_metadata_disagreement() is True
+
+
+def test_has_metadata_disagreement_false_when_instruments_and_instruments_any_both_agree(repo, pkg_dir):
+    write_pyproject(
+        pkg_dir,
+        """\
+        [project]
+        name = "opentelemetry-instrumentation-botocore"
+        version = "1.0.0"
+
+        [project.optional-dependencies]
+        instruments = ["botocore >= 1.0"]
+        instruments-any = ["boto3 >= 1.0"]
+        """,
+    )
+    write_package_py(
+        pkg_dir,
+        """\
+        _instruments = ("botocore >= 1.0",)
+        _instruments_any = ("boto3 >= 1.0",)
+        """,
+    )
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_metadata_disagreement() is False
+
+
+def test_has_metadata_disagreement_true_when_package_py_declares_instruments_pyproject_lacks(repo, pkg_dir):
+    """package.py explicitly declaring instruments that pyproject.toml doesn't have at all
+    (under that specific key) is a real, reportable disagreement — not silent."""
+    write_pyproject(
+        pkg_dir,
+        """\
+        [project]
+        name = "opentelemetry-instrumentation-botocore"
+        version = "1.0.0"
+
+        [project.optional-dependencies]
+        instruments = ["botocore >= 1.0"]
+        """,
+    )
+    write_package_py(pkg_dir, '_instruments_any = ("boto3 >= 1.0",)\n')
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_metadata_disagreement() is True
+
+
+def test_parse_package_py_handles_annotated_instruments_assignment(repo, pkg_dir):
+    write_pyproject(pkg_dir, BASIC_PYPROJECT)
+    write_package_py(pkg_dir, '_instruments: tuple[str, ...] = ("flask >= 1.0",)\n')
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    # Would stay a false negative if AnnAssign weren't handled: the field would read as
+    # "not defined" and no disagreement would ever be reported for this package.py.
+    assert parser.has_metadata_disagreement() is False
+
+
+def test_has_metadata_disagreement_true_with_annotated_assignment_mismatch(repo, pkg_dir):
+    write_pyproject(pkg_dir, BASIC_PYPROJECT)
+    write_package_py(pkg_dir, '_instruments: tuple[str, ...] = ("flask >= 9.0",)\n')
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_metadata_disagreement() is True
+
+
+def test_parse_package_py_handles_empty_tuple_call_annotated_assignment(repo, pkg_dir):
+    """`tuple()` is a Call node, not a literal — ast.literal_eval alone can't read it."""
+    write_pyproject(pkg_dir, '[project]\nname = "opentelemetry-instrumentation-flask"\nversion = "1.0.0"\n')
+    write_package_py(pkg_dir, "_instruments: tuple[str, ...] = tuple()\n")
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    # package.py explicitly declares zero instruments, and pyproject.toml agrees (none
+    # declared either) — not a disagreement.
+    assert parser.has_metadata_disagreement() is False
+
+
+def test_has_metadata_disagreement_true_when_package_py_empty_tuple_call_but_pyproject_has_entries(repo, pkg_dir):
+    write_pyproject(pkg_dir, BASIC_PYPROJECT)
+    write_package_py(pkg_dir, "_instruments: tuple[str, ...] = tuple()\n")
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_metadata_disagreement() is True
+
+
+def test_parse_package_py_handles_annotated_scalar_assignment(repo, pkg_dir):
+    write_pyproject(pkg_dir, BASIC_PYPROJECT)
+    write_package_py(
+        pkg_dir,
+        """\
+        _semconv_status: str = "stable"
+        _supports_metrics: bool = True
+        """,
+    )
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    result = parser.parse()
+
+    assert result["semantic_convention_status"] == "stable"
+    assert result["supports_metrics"] is True
+
+
+def test_parse_package_py_annotation_only_statement_without_value_is_ignored(repo, pkg_dir):
+    """`_instruments: tuple[str, ...]` with no assigned value must not be evaluated as None."""
+    write_pyproject(pkg_dir, BASIC_PYPROJECT)
+    write_package_py(pkg_dir, "_instruments: tuple[str, ...]\n")
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    # No value was ever assigned, so this is indistinguishable from "not defined".
+    assert parser.has_metadata_disagreement() is False
+
+
+def test_parse_package_py_unrecognized_call_is_not_evaluated(repo, pkg_dir):
+    """Only the explicit empty-container allowlist is accepted; other calls are skipped, not executed."""
+    write_pyproject(pkg_dir, BASIC_PYPROJECT)
+    write_package_py(pkg_dir, "_instruments = some_function_call()\n")
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    # some_function_call() is neither a literal nor a recognized empty-container call, so
+    # the field is left unset (as if not defined) rather than raising or being invoked.
+    assert parser.has_metadata_disagreement() is False
 
 
 def test_parse_uses_first_package_py_when_multiple_found(repo, pkg_dir):
