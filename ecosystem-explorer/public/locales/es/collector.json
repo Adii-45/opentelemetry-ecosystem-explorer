@@ -345,7 +345,7 @@
       "bucketBoundaries": "Límites de los buckets"
     },
     "attributeChanges": "Cambios en atributos",
-    "metricRemoved": "Esta métrica se eliminó en la versión \"to\" seleccionada."
+    "metricRemoved": "Esta métrica se eliminó en la versión \"Hasta\" seleccionada."
   },
   "diffAttributeTable": {
     "ariaLabel": "Cambios en atributos",
