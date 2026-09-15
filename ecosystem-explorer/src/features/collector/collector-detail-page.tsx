@@ -593,15 +593,36 @@ export function CollectorDetailPage() {
                         attributes={component.attributes}
                         resourceAttributes={component.resource_attributes}
                       />
+                    ) : versionData ? (
+                      <TelemetryComparisonSection
+                        distribution={component.distribution}
+                        name={component.name}
+                        versions={versionData.versions}
+                        currentVersion={version}
+                      />
+                    ) : versionsError ? (
+                      <div className="flex min-h-[200px] items-center justify-center">
+                        <div className="max-w-2xl rounded-lg border border-red-500/30 bg-red-500/10 p-6">
+                          <div className="flex items-start gap-3">
+                            <AlertCircle
+                              className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600 dark:text-red-400"
+                              aria-hidden="true"
+                            />
+                            <div className="space-y-1">
+                              <p className="font-medium text-red-700 dark:text-red-400">
+                                {t("detail.view.comparisonUnavailable.title")}
+                              </p>
+                              <p className="text-sm text-red-700/80 dark:text-red-400/80">
+                                {t("detail.view.comparisonUnavailable.message")}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     ) : (
-                      versionData && (
-                        <TelemetryComparisonSection
-                          distribution={component.distribution}
-                          name={component.name}
-                          versions={versionData.versions}
-                          currentVersion={version}
-                        />
-                      )
+                      <div className="flex min-h-[300px] items-center justify-center">
+                        <Loader size="sm" label={t("detail.loading.title")} />
+                      </div>
                     )}
                   </div>
                 </TabsContent>

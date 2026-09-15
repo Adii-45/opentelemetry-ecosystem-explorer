@@ -186,7 +186,11 @@
     },
     "view": {
       "current": "Current View",
-      "comparison": "Version Comparison"
+      "comparison": "Version Comparison",
+      "comparisonUnavailable": {
+        "title": "Comparison unavailable",
+        "message": "Could not load the list of versions needed for comparison."
+      }
     },
     "sections": {
       "componentInfo": "Component Info",
@@ -288,7 +292,8 @@
   "telemetryComparison": {
     "loading": "Loading comparison...",
     "error": {
-      "title": "Failed to load comparison"
+      "title": "Failed to load comparison",
+      "bothVersionsFailed": "Both versions could not be loaded. The component may not exist in these versions."
     },
     "warnings": {
       "availability": {
@@ -331,6 +336,14 @@
     },
     "stabilityChanged": "Stability changed",
     "metricTypeChanged": "Metric type changed",
+    "descriptorChanged": "Descriptor changed",
+    "descriptorFields": {
+      "valueType": "Value type",
+      "monotonic": "Monotonic",
+      "aggregationTemporality": "Aggregation temporality",
+      "async": "Async",
+      "bucketBoundaries": "Bucket boundaries"
+    },
     "attributeChanges": "Attribute Changes",
     "metricRemoved": "This metric was removed in the selected \"to\" version."
   },
@@ -339,13 +352,21 @@
     "columns": {
       "status": "Status",
       "key": "Key",
-      "type": "Type"
+      "type": "Type",
+      "changedFields": "Changed Fields"
     },
     "status": {
       "added": "Added",
       "removed": "Removed",
       "modified": "Modified"
-    }
+    },
+    "fields": {
+      "type": "Type",
+      "description": "Description",
+      "nameOverride": "Name Override",
+      "enum": "Enum"
+    },
+    "fieldSeparator": ", "
   },
   "explore": {
     "componentTypes": {

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import type { CollectorTelemetryDiffResult } from "@/types/collector";
 import * as collectorData from "@/lib/api/collector-data";
 import { compareCollectorTelemetry } from "../utils/telemetry-diff";
@@ -36,6 +37,7 @@ export function useTelemetryComparison(
   initialFromVersion: string,
   initialToVersion: string
 ): UseTelemetryComparisonResult {
+  const { t } = useTranslation("collector");
   const [customFromVersion, setCustomFromVersion] = useState<string | null>(null);
   const [customToVersion, setCustomToVersion] = useState<string | null>(null);
   const [diffResult, setDiffResult] = useState<CollectorTelemetryDiffResult | null>(null);
@@ -89,7 +91,7 @@ export function useTelemetryComparison(
         const toLoadFailed = toResult.status === "rejected";
 
         if (fromLoadFailed && toLoadFailed) {
-          setError(new Error("Failed to load both versions for comparison"));
+          setError(new Error(t("telemetryComparison.error.bothVersionsFailed")));
           setFromNotFound(true);
           setToNotFound(true);
           setDiffResult(null);
@@ -125,7 +127,7 @@ export function useTelemetryComparison(
     return () => {
       cancelled = true;
     };
-  }, [distribution, name, fromVersion, toVersion]);
+  }, [distribution, name, fromVersion, toVersion, t]);
 
   return {
     fromVersion,

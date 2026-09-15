@@ -156,7 +156,9 @@ describe("compareCollectorTelemetry", () => {
     expect(result.metrics[0].changes?.metricType).toEqual({ before: "sum", after: "gauge" });
   });
 
-  it("detects a sub-field change within the same metric type (sum.monotonic flip)", () => {
+  it("detects a sub-field change within the same metric type (sum.monotonic flip) without misreporting it as a type change", () => {
+    // Regression guard: the metric type stays "sum" on both sides, so `metricType`
+    // must stay unset (previously this produced a misleading "sum -> sum" diff).
     const from = makeComponent({
       telemetry: {
         metrics: { "my.metric": makeMetric({ sum: { monotonic: true, value_type: "int" } }) },
@@ -169,10 +171,71 @@ describe("compareCollectorTelemetry", () => {
     });
     const result = compareCollectorTelemetry(from, to);
     expect(result.metrics[0].status).toBe("changed");
-    expect(result.metrics[0].changes?.metricType).toEqual({ before: "sum", after: "sum" });
+    expect(result.metrics[0].changes?.metricType).toBeUndefined();
+    expect(result.metrics[0].changes?.descriptor).toEqual({
+      monotonic: { before: true, after: false },
+    });
   });
 
-  it("detects a histogram bucket_boundaries change", () => {
+  it("detects a value_type-only change within the same metric type", () => {
+    const from = makeComponent({
+      telemetry: {
+        metrics: { "my.metric": makeMetric({ sum: { monotonic: true, value_type: "int" } }) },
+      },
+    });
+    const to = makeComponent({
+      telemetry: {
+        metrics: { "my.metric": makeMetric({ sum: { monotonic: true, value_type: "double" } }) },
+      },
+    });
+    const result = compareCollectorTelemetry(from, to);
+    expect(result.metrics[0].changes?.metricType).toBeUndefined();
+    expect(result.metrics[0].changes?.descriptor).toEqual({
+      value_type: { before: "int", after: "double" },
+    });
+  });
+
+  it("detects an aggregation_temporality-only change within the same metric type", () => {
+    const from = makeComponent({
+      telemetry: {
+        metrics: {
+          "my.metric": makeMetric({
+            sum: { monotonic: true, value_type: "int", aggregation_temporality: "cumulative" },
+          }),
+        },
+      },
+    });
+    const to = makeComponent({
+      telemetry: {
+        metrics: {
+          "my.metric": makeMetric({
+            sum: { monotonic: true, value_type: "int", aggregation_temporality: "delta" },
+          }),
+        },
+      },
+    });
+    const result = compareCollectorTelemetry(from, to);
+    expect(result.metrics[0].changes?.metricType).toBeUndefined();
+    expect(result.metrics[0].changes?.descriptor).toEqual({
+      aggregation_temporality: { before: "cumulative", after: "delta" },
+    });
+  });
+
+  it("is not affected by descriptor object key ordering (no JSON.stringify comparison)", () => {
+    const fromSum = { value_type: "int", monotonic: true, aggregation_temporality: "cumulative" };
+    // Same content, keys inserted in a different order.
+    const toSum = { aggregation_temporality: "cumulative", monotonic: true, value_type: "int" };
+    const from = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ sum: fromSum }) } },
+    });
+    const to = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ sum: toSum }) } },
+    });
+    const result = compareCollectorTelemetry(from, to);
+    expect(result.metrics[0].status).toBe("unchanged");
+  });
+
+  it("detects a histogram bucket_boundaries change without misreporting it as a type change", () => {
     const from = makeComponent({
       telemetry: {
         metrics: {
@@ -195,7 +258,90 @@ describe("compareCollectorTelemetry", () => {
     });
     const result = compareCollectorTelemetry(from, to);
     expect(result.metrics[0].status).toBe("changed");
-    expect(result.metrics[0].changes?.metricType?.before).toBe("histogram");
+    expect(result.metrics[0].changes?.metricType).toBeUndefined();
+    expect(result.metrics[0].changes?.descriptor).toEqual({
+      bucket_boundaries: { before: [1, 2, 3], after: [1, 2, 3, 4] },
+    });
+  });
+
+  it("still reports a true metric-type change (sum -> gauge) via metricType, not descriptor", () => {
+    const from = makeComponent({
+      telemetry: {
+        metrics: { "my.metric": makeMetric({ sum: { monotonic: true, value_type: "int" } }) },
+      },
+    });
+    const to = makeComponent({
+      telemetry: {
+        metrics: {
+          "my.metric": makeMetric({ sum: undefined, gauge: { value_type: "int" } }),
+        },
+      },
+    });
+    const result = compareCollectorTelemetry(from, to);
+    expect(result.metrics[0].changes?.metricType).toEqual({ before: "sum", after: "gauge" });
+    expect(result.metrics[0].changes?.descriptor).toBeUndefined();
+  });
+
+  it("detects an extended_documentation-only change", () => {
+    const from = makeComponent({
+      telemetry: {
+        metrics: { "my.metric": makeMetric({ extended_documentation: "before" }) },
+      },
+    });
+    const to = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ extended_documentation: "after" }) } },
+    });
+    const result = compareCollectorTelemetry(from, to);
+    expect(result.metrics[0].changes?.extendedDocumentation).toEqual({
+      before: "before",
+      after: "after",
+    });
+    expect(result.metrics[0].changes?.description).toBeUndefined();
+  });
+
+  it("detects an optional-only change", () => {
+    const from = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ optional: false }) } },
+    });
+    const to = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ optional: true }) } },
+    });
+    const result = compareCollectorTelemetry(from, to);
+    expect(result.metrics[0].changes?.optional).toEqual({ before: false, after: true });
+  });
+
+  it("detects a prefix-only change", () => {
+    const from = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ prefix: "otelcol." }) } },
+    });
+    const to = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ prefix: "otelcol.v2." }) } },
+    });
+    const result = compareCollectorTelemetry(from, to);
+    expect(result.metrics[0].changes?.prefix).toEqual({
+      before: "otelcol.",
+      after: "otelcol.v2.",
+    });
+  });
+
+  it("detects a deprecated-only change", () => {
+    const from = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ deprecated: undefined }) } },
+    });
+    const to = makeComponent({
+      telemetry: {
+        metrics: {
+          "my.metric": makeMetric({
+            deprecated: { note: "Use my.other.metric instead", since: "0.150.0" },
+          }),
+        },
+      },
+    });
+    const result = compareCollectorTelemetry(from, to);
+    expect(result.metrics[0].changes?.deprecated).toEqual({
+      before: undefined,
+      after: { note: "Use my.other.metric instead", since: "0.150.0" },
+    });
   });
 
   it("detects an added attribute, resolving definitions from each version's own attributes map", () => {

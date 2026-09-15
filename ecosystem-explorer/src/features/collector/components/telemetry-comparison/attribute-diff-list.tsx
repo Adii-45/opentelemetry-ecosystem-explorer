@@ -16,10 +16,25 @@
 
 import { Plus, Minus } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { CollectorAttributeChanges } from "@/types/collector";
+import type { CollectorAttribute, CollectorAttributeChanges } from "@/types/collector";
 
 interface AttributeDiffListProps {
   changes: CollectorAttributeChanges;
+}
+
+/**
+ * `attributesEqual` (telemetry-diff.ts) treats an attribute as changed when any of type,
+ * description, name_override, or enum differ. The table only has room to render the type
+ * before/after, so this identifies which fields actually differ per row to avoid implying a
+ * type change (e.g. "string -> string") when the real change was elsewhere.
+ */
+function changedFields(before?: CollectorAttribute, after?: CollectorAttribute): string[] {
+  const fields: string[] = [];
+  if (before?.type !== after?.type) fields.push("type");
+  if (before?.description !== after?.description) fields.push("description");
+  if (before?.name_override !== after?.name_override) fields.push("nameOverride");
+  if (JSON.stringify(before?.enum ?? []) !== JSON.stringify(after?.enum ?? [])) fields.push("enum");
+  return fields;
 }
 
 export function AttributeDiffList({ changes }: AttributeDiffListProps) {
@@ -54,6 +69,12 @@ export function AttributeDiffList({ changes }: AttributeDiffListProps) {
             >
               {t("diffAttributeTable.columns.type")}
             </th>
+            <th
+              scope="col"
+              className="text-muted-foreground p-3 text-left text-[10px] font-bold tracking-widest uppercase"
+            >
+              {t("diffAttributeTable.columns.changedFields")}
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -75,6 +96,7 @@ export function AttributeDiffList({ changes }: AttributeDiffListProps) {
                   {attr.definition?.type ?? "—"}
                 </span>
               </td>
+              <td className="p-4" />
             </tr>
           ))}
 
@@ -99,39 +121,55 @@ export function AttributeDiffList({ changes }: AttributeDiffListProps) {
                   {attr.definition?.type ?? "—"}
                 </span>
               </td>
+              <td className="p-4" />
             </tr>
           ))}
 
-          {changes.changed.map((change, index) => (
-            <tr
-              key={`changed-${change.key}`}
-              className={
-                (index + changes.added.length + changes.removed.length) % 2 === 1
-                  ? "bg-muted/20"
-                  : ""
-              }
-            >
-              <td className="p-4">
-                <span className="text-xs font-medium text-orange-700 dark:text-orange-400">
-                  {t("diffAttributeTable.status.modified")}
-                </span>
-              </td>
-              <td className="p-4 font-mono text-sm md:text-[12px]">
-                {change.after?.name_override ?? change.before?.name_override ?? change.key}
-              </td>
-              <td className="p-4">
-                <div className="flex items-center gap-2">
-                  <span className="bg-muted/50 text-foreground/70 inline-block w-fit rounded px-2 py-1 text-xs font-bold uppercase line-through opacity-60">
-                    {change.before?.type ?? "—"}
+          {changes.changed.map((change, index) => {
+            const fields = changedFields(change.before, change.after);
+            const typeChanged = fields.includes("type");
+            return (
+              <tr
+                key={`changed-${change.key}`}
+                className={
+                  (index + changes.added.length + changes.removed.length) % 2 === 1
+                    ? "bg-muted/20"
+                    : ""
+                }
+              >
+                <td className="p-4">
+                  <span className="text-xs font-medium text-orange-700 dark:text-orange-400">
+                    {t("diffAttributeTable.status.modified")}
                   </span>
-                  <span className="text-muted-foreground text-xs">→</span>
-                  <span className="bg-muted/50 text-foreground/70 inline-block w-fit rounded px-2 py-1 text-xs font-bold uppercase">
-                    {change.after?.type ?? "—"}
-                  </span>
-                </div>
-              </td>
-            </tr>
-          ))}
+                </td>
+                <td className="p-4 font-mono text-sm md:text-[12px]">
+                  {change.after?.name_override ?? change.before?.name_override ?? change.key}
+                </td>
+                <td className="p-4">
+                  {typeChanged ? (
+                    <div className="flex items-center gap-2">
+                      <span className="bg-muted/50 text-foreground/70 inline-block w-fit rounded px-2 py-1 text-xs font-bold uppercase line-through opacity-60">
+                        {change.before?.type ?? "—"}
+                      </span>
+                      <span className="text-muted-foreground text-xs">→</span>
+                      <span className="bg-muted/50 text-foreground/70 inline-block w-fit rounded px-2 py-1 text-xs font-bold uppercase">
+                        {change.after?.type ?? "—"}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="bg-muted/50 text-foreground/70 inline-block w-fit rounded px-2 py-1 text-xs font-bold uppercase">
+                      {change.after?.type ?? change.before?.type ?? "—"}
+                    </span>
+                  )}
+                </td>
+                <td className="p-4 text-xs">
+                  {fields
+                    .map((field) => t(`diffAttributeTable.fields.${field}`))
+                    .join(t("diffAttributeTable.fieldSeparator"))}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

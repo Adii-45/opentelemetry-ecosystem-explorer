@@ -231,6 +231,37 @@ describe("CollectorDetailPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows an unavailable state instead of silently rendering nothing when Version Comparison is opened and the versions fetch failed", async () => {
+    // Regression guard: with ?version= present, the page can render before/without
+    // useCollectorVersions() resolving. If it settles with an error, `versionData` stays
+    // null forever, and the comparison toggle must show an explicit error state instead of
+    // rendering nothing.
+    const user = userEvent.setup();
+    vi.mocked(useCollectorVersions).mockReturnValue({
+      data: null,
+      loading: false,
+      error: new Error("Failed to load collector-versions-index"),
+    });
+    vi.mocked(useCollectorComponent).mockReturnValue({
+      data: mockComponentWithInternalTelemetry,
+      loading: false,
+      error: null,
+    });
+
+    renderAtRoute("/collector/components/core/otlpreceiver?version=0.150.0");
+
+    const internalTelemetryTab = screen.getByRole("tab", { name: "Internal Telemetry" });
+    await user.click(internalTelemetryTab);
+
+    const comparisonButton = screen.getByRole("button", { name: "Version Comparison" });
+    await user.click(comparisonButton);
+
+    expect(screen.getByText("Comparison unavailable")).toBeInTheDocument();
+    expect(
+      screen.getByText("Could not load the list of versions needed for comparison.")
+    ).toBeInTheDocument();
+  });
+
   it("resolves the version from the URL immediately when ?version= is present, independent of the versions fetch", () => {
     vi.mocked(useCollectorVersions).mockReturnValue({
       data: null,

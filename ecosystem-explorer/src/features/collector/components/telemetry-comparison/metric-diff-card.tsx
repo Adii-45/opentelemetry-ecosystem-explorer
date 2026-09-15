@@ -142,14 +142,56 @@ export function MetricDiffCard({ diff }: MetricDiffCardProps) {
           </div>
         )}
 
-        {status === "changed" && changes?.attributes && (
-          <div className="space-y-4">
-            <h4 className="text-muted-foreground text-xs font-black tracking-[0.2em] uppercase">
-              {t("diffCard.attributeChanges")}
-            </h4>
-            <AttributeDiffList changes={changes.attributes} />
+        {status === "changed" && changes?.descriptor && (
+          <div className="space-y-2">
+            <span className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
+              {t("diffCard.descriptorChanged")}
+            </span>
+            <div className="space-y-2">
+              {(
+                [
+                  ["value_type", "valueType"],
+                  ["monotonic", "monotonic"],
+                  ["aggregation_temporality", "aggregationTemporality"],
+                  ["async", "async"],
+                  ["bucket_boundaries", "bucketBoundaries"],
+                ] as const
+              ).map(([field, labelKey]) => {
+                const fieldChange = changes.descriptor?.[field];
+                if (!fieldChange) return null;
+                const format = (value: unknown) =>
+                  value === undefined ? "—" : Array.isArray(value) ? `[${value.join(", ")}]` : String(value);
+                return (
+                  <div key={field} className="flex flex-wrap items-center gap-2">
+                    <span className="text-muted-foreground text-xs">
+                      {t(`diffCard.descriptorFields.${labelKey}`)}:
+                    </span>
+                    <code className="rounded border border-red-500/30 bg-red-500/10 px-2 py-1 text-sm text-red-700 line-through dark:text-red-400">
+                      {format(fieldChange.before)}
+                    </code>
+                    <span className="text-muted-foreground">→</span>
+                    <code className="rounded border border-green-500/30 bg-green-500/10 px-2 py-1 text-sm text-green-700 dark:text-green-400">
+                      {format(fieldChange.after)}
+                    </code>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
+
+        {status === "changed" &&
+          changes?.attributes &&
+          (changes.attributes.added.length > 0 ||
+            changes.attributes.removed.length > 0 ||
+            changes.attributes.changed.length > 0) && (
+            <div className="space-y-4">
+              <h4 className="text-muted-foreground text-xs font-black tracking-[0.2em] uppercase">
+                {t("diffCard.attributeChanges")}
+              </h4>
+              <AttributeDiffList changes={changes.attributes} />
+            </div>
+          )}
 
         {status === "removed" && (
           <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4">

@@ -180,13 +180,17 @@
       "details": "Detalles",
       "stability": "Estabilidad",
       "telemetry": "Telemetría",
-      "internalTelemetry": "Internal Telemetry",
+      "internalTelemetry": "Telemetría interna",
       "featureGates": "Feature Gates",
       "readme": "Readme"
     },
     "view": {
-      "current": "Current View",
-      "comparison": "Version Comparison"
+      "current": "Vista actual",
+      "comparison": "Comparación de versiones",
+      "comparisonUnavailable": {
+        "title": "Comparación no disponible",
+        "message": "No se pudo cargar la lista de versiones necesaria para la comparación."
+      }
     },
     "sections": {
       "componentInfo": "Información del componente",
@@ -286,66 +290,83 @@
     }
   },
   "telemetryComparison": {
-    "loading": "Loading comparison...",
+    "loading": "Cargando comparación...",
     "error": {
-      "title": "Failed to load comparison"
+      "title": "Error al cargar la comparación",
+      "bothVersionsFailed": "No se pudieron cargar ambas versiones. Es posible que el componente no exista en estas versiones."
     },
     "warnings": {
       "availability": {
-        "title": "Version availability",
-        "fromNotFound": "Could not load internal telemetry for version {{fromVersion}}.",
-        "toNotFound": "Could not load internal telemetry for version {{toVersion}}."
+        "title": "Disponibilidad de versión",
+        "fromNotFound": "No se pudo cargar la telemetría interna para la versión {{fromVersion}}.",
+        "toNotFound": "No se pudo cargar la telemetría interna para la versión {{toVersion}}."
       },
       "sameVersion": {
-        "title": "Same version selected",
-        "message": "Choose two different versions to see a comparison."
+        "title": "Se seleccionó la misma versión",
+        "message": "Elige dos versiones diferentes para ver una comparación."
       }
     }
   },
   "versionSelectorPanel": {
-    "banner": "Compare internal telemetry metrics between two Collector releases.",
-    "from": "From",
-    "to": "To",
-    "latestSuffix": "(latest)"
+    "banner": "Compara las métricas de telemetría interna entre dos versiones del Collector.",
+    "from": "Desde",
+    "to": "Hasta",
+    "latestSuffix": "(última)"
   },
   "diffResults": {
-    "addedRemovedHeader": "Added & Removed",
-    "changedHeader": "Changed",
+    "addedRemovedHeader": "Agregados y eliminados",
+    "changedHeader": "Modificados",
     "empty": {
-      "title": "No differences found",
-      "description": "Internal telemetry metrics are identical between these two versions."
+      "title": "No se encontraron diferencias",
+      "description": "Las métricas de telemetría interna son idénticas entre estas dos versiones."
     }
   },
   "diffCard": {
     "status": {
-      "added": "Added",
-      "removed": "Removed",
-      "changed": "Changed"
+      "added": "Agregado",
+      "removed": "Eliminado",
+      "changed": "Modificado"
     },
-    "unit": "Unit",
-    "descriptionChanged": "Description changed",
-    "enabledChanged": "Enabled state changed",
+    "unit": "Unidad",
+    "descriptionChanged": "Descripción modificada",
+    "enabledChanged": "Estado habilitado modificado",
     "enabledValue": {
-      "enabled": "Enabled",
-      "disabled": "Disabled"
+      "enabled": "Habilitado",
+      "disabled": "Deshabilitado"
     },
-    "stabilityChanged": "Stability changed",
-    "metricTypeChanged": "Metric type changed",
-    "attributeChanges": "Attribute Changes",
-    "metricRemoved": "This metric was removed in the selected \"to\" version."
+    "stabilityChanged": "Estabilidad modificada",
+    "metricTypeChanged": "Tipo de métrica modificado",
+    "descriptorChanged": "Descriptor modificado",
+    "descriptorFields": {
+      "valueType": "Tipo de valor",
+      "monotonic": "Monótono",
+      "aggregationTemporality": "Temporalidad de agregación",
+      "async": "Asíncrono",
+      "bucketBoundaries": "Límites de los buckets"
+    },
+    "attributeChanges": "Cambios en atributos",
+    "metricRemoved": "Esta métrica se eliminó en la versión \"to\" seleccionada."
   },
   "diffAttributeTable": {
-    "ariaLabel": "Attribute changes",
+    "ariaLabel": "Cambios en atributos",
     "columns": {
-      "status": "Status",
-      "key": "Key",
-      "type": "Type"
+      "status": "Estado",
+      "key": "Clave",
+      "type": "Tipo",
+      "changedFields": "Campos modificados"
     },
     "status": {
-      "added": "Added",
-      "removed": "Removed",
-      "modified": "Modified"
-    }
+      "added": "Agregado",
+      "removed": "Eliminado",
+      "modified": "Modificado"
+    },
+    "fields": {
+      "type": "Tipo",
+      "description": "Descripción",
+      "nameOverride": "Nombre alternativo",
+      "enum": "Enum"
+    },
+    "fieldSeparator": ", "
   },
   "explore": {
     "componentTypes": {

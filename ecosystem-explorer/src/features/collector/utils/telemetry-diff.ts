@@ -20,8 +20,10 @@ import type {
   CollectorComponent,
   CollectorMetric,
   CollectorMetricChanges,
+  CollectorMetricDescriptorChanges,
   CollectorMetricDiff,
   CollectorTelemetryDiffResult,
+  MetricValueDescriptor,
   ResolvedCollectorAttribute,
 } from "@/types/collector";
 import { getMetricType } from "./metric-type";
@@ -81,16 +83,78 @@ function compareAttributes(
   return { added, removed, changed };
 }
 
-/** Shallow-compares the type-specific descriptor (sum/gauge/histogram) of a metric. */
-function metricDescriptorEqual(from: CollectorMetric, to: CollectorMetric): boolean {
+function numberArraysEqual(a: number[] | undefined, b: number[] | undefined): boolean {
+  const aArr = a ?? [];
+  const bArr = b ?? [];
+  return aArr.length === bArr.length && aArr.every((v, i) => v === bArr[i]);
+}
+
+/**
+ * Compares a metric's instrument type and, when the type is unchanged, its type-specific
+ * descriptor (sum/gauge/histogram) field-by-field. Returns at most one of `metricType` (the
+ * instrument type itself changed, e.g. sum -> gauge) or `descriptor` (same type, but one or
+ * more descriptor fields differ) so a descriptor-only change never gets misreported as a
+ * "type changed" (e.g. "sum -> sum").
+ */
+function compareMetricDescriptor(
+  from: CollectorMetric,
+  to: CollectorMetric
+): Pick<CollectorMetricChanges, "metricType" | "descriptor"> {
   const fromType = getMetricType(from);
   const toType = getMetricType(to);
-  if (fromType !== toType) return false;
-  if (fromType === null) return true;
 
-  const fromDescriptor = from[fromType];
-  const toDescriptor = to[toType as "sum" | "gauge" | "histogram"];
-  return JSON.stringify(fromDescriptor) === JSON.stringify(toDescriptor);
+  if (fromType !== toType) {
+    return { metricType: { before: fromType, after: toType } };
+  }
+  if (fromType === null) {
+    return {};
+  }
+
+  const fromDescriptor = from[fromType] as MetricValueDescriptor & {
+    monotonic?: boolean;
+    bucket_boundaries?: number[];
+  };
+  const toDescriptor = to[fromType] as MetricValueDescriptor & {
+    monotonic?: boolean;
+    bucket_boundaries?: number[];
+  };
+
+  const descriptor: CollectorMetricDescriptorChanges = {};
+
+  if (fromDescriptor.value_type !== toDescriptor.value_type) {
+    descriptor.value_type = { before: fromDescriptor.value_type, after: toDescriptor.value_type };
+  }
+  if (fromDescriptor.aggregation_temporality !== toDescriptor.aggregation_temporality) {
+    descriptor.aggregation_temporality = {
+      before: fromDescriptor.aggregation_temporality,
+      after: toDescriptor.aggregation_temporality,
+    };
+  }
+  if (fromDescriptor.async !== toDescriptor.async) {
+    descriptor.async = { before: fromDescriptor.async, after: toDescriptor.async };
+  }
+  if (fromType === "sum" && fromDescriptor.monotonic !== toDescriptor.monotonic) {
+    descriptor.monotonic = { before: fromDescriptor.monotonic, after: toDescriptor.monotonic };
+  }
+  if (
+    fromType === "histogram" &&
+    !numberArraysEqual(fromDescriptor.bucket_boundaries, toDescriptor.bucket_boundaries)
+  ) {
+    descriptor.bucket_boundaries = {
+      before: fromDescriptor.bucket_boundaries,
+      after: toDescriptor.bucket_boundaries,
+    };
+  }
+
+  return Object.keys(descriptor).length > 0 ? { descriptor } : {};
+}
+
+function deprecatedEqual(
+  a?: { note?: string; since?: string },
+  b?: { note?: string; since?: string }
+): boolean {
+  if (!a || !b) return a === b;
+  return a.note === b.note && a.since === b.since;
 }
 
 /** Compares one metric present in both versions, keyed by `name`. */
@@ -111,20 +175,31 @@ function compareMetric(
   const unitChanged = fromMetric.unit !== toMetric.unit;
   const enabledChanged = fromMetric.enabled !== toMetric.enabled;
   const stabilityChanged = fromMetric.stability !== toMetric.stability;
-  const metricTypeChanged = !metricDescriptorEqual(fromMetric, toMetric);
+  const extendedDocumentationChanged =
+    fromMetric.extended_documentation !== toMetric.extended_documentation;
+  const optionalChanged = fromMetric.optional !== toMetric.optional;
+  const prefixChanged = fromMetric.prefix !== toMetric.prefix;
+  const deprecatedChanged = !deprecatedEqual(fromMetric.deprecated, toMetric.deprecated);
+  const descriptorChanges = compareMetricDescriptor(fromMetric, toMetric);
+  const descriptorChanged =
+    descriptorChanges.metricType !== undefined || descriptorChanges.descriptor !== undefined;
 
   if (
     !descriptionChanged &&
     !unitChanged &&
     !enabledChanged &&
     !stabilityChanged &&
-    !metricTypeChanged &&
+    !extendedDocumentationChanged &&
+    !optionalChanged &&
+    !prefixChanged &&
+    !deprecatedChanged &&
+    !descriptorChanged &&
     !attributesChanged
   ) {
     return { status: "unchanged", name, metric: toMetric };
   }
 
-  const changes: CollectorMetricChanges = { attributes: attributeChanges };
+  const changes: CollectorMetricChanges = { attributes: attributeChanges, ...descriptorChanges };
 
   if (descriptionChanged) {
     changes.description = { before: fromMetric.description, after: toMetric.description };
@@ -138,8 +213,20 @@ function compareMetric(
   if (stabilityChanged) {
     changes.stability = { before: fromMetric.stability, after: toMetric.stability };
   }
-  if (metricTypeChanged) {
-    changes.metricType = { before: getMetricType(fromMetric), after: getMetricType(toMetric) };
+  if (extendedDocumentationChanged) {
+    changes.extendedDocumentation = {
+      before: fromMetric.extended_documentation,
+      after: toMetric.extended_documentation,
+    };
+  }
+  if (optionalChanged) {
+    changes.optional = { before: fromMetric.optional, after: toMetric.optional };
+  }
+  if (prefixChanged) {
+    changes.prefix = { before: fromMetric.prefix, after: toMetric.prefix };
+  }
+  if (deprecatedChanged) {
+    changes.deprecated = { before: fromMetric.deprecated, after: toMetric.deprecated };
   }
 
   return { status: "changed", name, metric: toMetric, changes };

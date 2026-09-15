@@ -102,7 +102,9 @@ describe("useTelemetryComparison hook (collector)", () => {
     ]);
   });
 
-  it("sets an error and no diff when both versions fail to load", async () => {
+  it("sets a translated error and no diff when both versions fail to load", async () => {
+    // Regression guard: the error message must come from the "collector" locale
+    // (matching the Java Agent hook's pattern), not a hardcoded English string.
     vi.mocked(collectorData.loadComponent).mockRejectedValue(new Error("not found"));
 
     const { result } = renderHook(() =>
@@ -112,6 +114,9 @@ describe("useTelemetryComparison hook (collector)", () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.error).not.toBeNull();
+    expect(result.current.error?.message).toBe(
+      "Both versions could not be loaded. The component may not exist in these versions."
+    );
     expect(result.current.fromNotFound).toBe(true);
     expect(result.current.toNotFound).toBe(true);
     expect(result.current.diffResult).toBeNull();

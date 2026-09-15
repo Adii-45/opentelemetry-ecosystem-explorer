@@ -118,6 +118,10 @@ export interface CollectorMetric {
   extended_documentation?: string;
   /** Whether this metric is optional (only initialized under certain conditions). */
   optional?: boolean;
+  /** Metric name prefix applied at emission time (e.g. "otelcol."). */
+  prefix?: string;
+  /** Present when the metric is deprecated; carries the replacement guidance and version. */
+  deprecated?: { note?: string; since?: string };
   /** Sum metric type descriptor. Present when the metric is a sum. */
   sum?: MetricValueDescriptor & { monotonic: boolean };
   /** Gauge metric type descriptor. Present when the metric is a gauge. */
@@ -231,12 +235,37 @@ export interface CollectorAttributeChanges {
   changed: CollectorAttributeChange[];
 }
 
+/**
+ * Field-level changes within a metric's type-specific descriptor (sum/gauge/histogram),
+ * populated only when the metric's instrument type (see `metricType`) is unchanged but one
+ * or more of its descriptor fields differ.
+ */
+export interface CollectorMetricDescriptorChanges {
+  value_type?: { before?: string; after?: string };
+  /** Sum descriptors only. */
+  monotonic?: { before?: boolean; after?: boolean };
+  aggregation_temporality?: { before?: string; after?: string };
+  async?: { before?: boolean; after?: boolean };
+  /** Histogram descriptors only. */
+  bucket_boundaries?: { before?: number[]; after?: number[] };
+}
+
 export interface CollectorMetricChanges {
   description?: { before: string; after: string };
   unit?: { before: string; after: string };
   enabled?: { before: boolean; after: boolean };
   stability?: { before?: Stability; after?: Stability };
+  /** Set only when the metric's instrument type itself changed (e.g. sum -> gauge). */
   metricType?: { before: string | null; after: string | null };
+  /** Set only when the instrument type is unchanged but descriptor fields differ. */
+  descriptor?: CollectorMetricDescriptorChanges;
+  extendedDocumentation?: { before?: string; after?: string };
+  optional?: { before?: boolean; after?: boolean };
+  prefix?: { before?: string; after?: string };
+  deprecated?: {
+    before?: { note?: string; since?: string };
+    after?: { note?: string; since?: string };
+  };
   attributes: CollectorAttributeChanges;
 }
 

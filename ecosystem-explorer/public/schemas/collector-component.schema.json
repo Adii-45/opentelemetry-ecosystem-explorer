@@ -146,6 +146,23 @@
             "description": "Whether this metric is optional (only initialized under certain conditions).",
             "type": "boolean"
           },
+          "prefix": {
+            "description": "Metric name prefix applied at emission time (e.g. \"otelcol.\").",
+            "type": "string"
+          },
+          "deprecated": {
+            "description": "Present when the metric is deprecated; carries the replacement guidance and version.",
+            "type": "object",
+            "properties": {
+              "note": {
+                "type": "string"
+              },
+              "since": {
+                "type": "string"
+              }
+            },
+            "propertyOrder": ["note", "since"]
+          },
           "sum": {
             "description": "Sum metric type descriptor. Present when the metric is a sum.",
             "allOf": [
@@ -253,6 +270,8 @@
           "stability",
           "extended_documentation",
           "optional",
+          "prefix",
+          "deprecated",
           "sum",
           "gauge",
           "histogram",
@@ -410,6 +429,23 @@
                 "description": "Whether this metric is optional (only initialized under certain conditions).",
                 "type": "boolean"
               },
+              "prefix": {
+                "description": "Metric name prefix applied at emission time (e.g. \"otelcol.\").",
+                "type": "string"
+              },
+              "deprecated": {
+                "description": "Present when the metric is deprecated; carries the replacement guidance and version.",
+                "type": "object",
+                "properties": {
+                  "note": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  }
+                },
+                "propertyOrder": ["note", "since"]
+              },
               "sum": {
                 "description": "Sum metric type descriptor. Present when the metric is a sum.",
                 "allOf": [
@@ -517,6 +553,8 @@
               "stability",
               "extended_documentation",
               "optional",
+              "prefix",
+              "deprecated",
               "sum",
               "gauge",
               "histogram",
