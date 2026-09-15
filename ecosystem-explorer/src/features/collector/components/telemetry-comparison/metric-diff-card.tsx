@@ -160,7 +160,11 @@ export function MetricDiffCard({ diff }: MetricDiffCardProps) {
                 const fieldChange = changes.descriptor?.[field];
                 if (!fieldChange) return null;
                 const format = (value: unknown) =>
-                  value === undefined ? "—" : Array.isArray(value) ? `[${value.join(", ")}]` : String(value);
+                  value === undefined
+                    ? "—"
+                    : Array.isArray(value)
+                      ? `[${value.join(", ")}]`
+                      : String(value);
                 return (
                   <div key={field} className="flex flex-wrap items-center gap-2">
                     <span className="text-muted-foreground text-xs">
