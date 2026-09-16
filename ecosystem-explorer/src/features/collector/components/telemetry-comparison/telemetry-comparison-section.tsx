@@ -18,6 +18,7 @@ import { AlertCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Loader } from "@/components/ui/loader";
 import type { VersionInfo } from "@/types/collector";
+import { useComponentVersions } from "@/hooks/use-collector-data";
 import { useTelemetryComparison } from "../../hooks/use-telemetry-comparison";
 import { VersionSelectorPanel } from "./version-selector-panel";
 import { DiffResultsSection } from "./diff-results-section";
@@ -36,12 +37,27 @@ export function TelemetryComparisonSection({
   currentVersion,
 }: TelemetryComparisonSectionProps) {
   const { t } = useTranslation("collector");
+
+  // Not every Collector release includes this component (e.g. core-only components skip
+  // contrib-only releases), so comparisons must be scoped to releases the component actually
+  // exists in rather than `versions` (every Collector release). Otherwise the default/selectable
+  // "from" version can point at a release without this component, and loadComponent() throwing
+  // for that side makes the diff misreport every metric on the other side as "added"/"removed".
+  const {
+    data: componentVersionList,
+    loading: componentVersionsLoading,
+    error: componentVersionsError,
+  } = useComponentVersions(distribution, name);
+  const scopedVersions = componentVersionList
+    ? versions.filter((v) => componentVersionList.includes(v.version))
+    : [];
+
   // "To" defaults to the version being viewed. "From" defaults to the previous release,
   // or falls back to currentVersion (triggering a same-version warning) if viewing the oldest version.
-  const currentIndex = versions.findIndex((v) => v.version === currentVersion);
+  const currentIndex = scopedVersions.findIndex((v) => v.version === currentVersion);
   const defaultFromVersion =
-    currentIndex >= 0 && currentIndex < versions.length - 1
-      ? versions[currentIndex + 1].version
+    currentIndex >= 0 && currentIndex < scopedVersions.length - 1
+      ? scopedVersions[currentIndex + 1].version
       : currentVersion;
 
   const {
@@ -56,10 +72,41 @@ export function TelemetryComparisonSection({
     toNotFound,
   } = useTelemetryComparison(distribution, name, defaultFromVersion, currentVersion);
 
+  if (componentVersionsLoading) {
+    return (
+      <div className="flex min-h-[300px] items-center justify-center">
+        <Loader size="sm" label={t("telemetryComparison.loading")} />
+      </div>
+    );
+  }
+
+  if (componentVersionsError) {
+    return (
+      <div className="flex min-h-[200px] items-center justify-center">
+        <div className="max-w-2xl rounded-lg border border-red-500/30 bg-red-500/10 p-6">
+          <div className="flex items-start gap-3">
+            <AlertCircle
+              className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600 dark:text-red-400"
+              aria-hidden="true"
+            />
+            <div className="space-y-1">
+              <p className="font-medium text-red-700 dark:text-red-400">
+                {t("telemetryComparison.error.title")}
+              </p>
+              <p className="text-sm text-red-700/80 dark:text-red-400/80">
+                {componentVersionsError.message}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <VersionSelectorPanel
-        versions={versions}
+        versions={scopedVersions}
         fromVersion={fromVersion}
         toVersion={toVersion}
         onFromVersionChange={setFromVersion}

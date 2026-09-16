@@ -18,10 +18,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { TelemetryComparisonSection } from "./telemetry-comparison-section";
 import { useTelemetryComparison } from "../../hooks/use-telemetry-comparison";
 import type { UseTelemetryComparisonResult } from "../../hooks/use-telemetry-comparison";
+import { useComponentVersions } from "@/hooks/use-collector-data";
 import type { VersionInfo } from "@/types/collector";
 
 vi.mock("../../hooks/use-telemetry-comparison", () => ({
   useTelemetryComparison: vi.fn(),
+}));
+
+vi.mock("@/hooks/use-collector-data", () => ({
+  useComponentVersions: vi.fn(),
 }));
 
 const VERSIONS: VersionInfo[] = [
@@ -50,6 +55,13 @@ function mockResult(overrides: Partial<UseTelemetryComparisonResult> = {}) {
 describe("TelemetryComparisonSection (collector)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: the component exists in every version passed in, matching the pre-scoping
+    // behavior for tests that aren't specifically exercising the scoping logic.
+    vi.mocked(useComponentVersions).mockReturnValue({
+      data: VERSIONS.map((v) => v.version),
+      loading: false,
+      error: null,
+    });
   });
 
   it("defaults 'From' to the release immediately before the current version", () => {
@@ -142,6 +154,86 @@ describe("TelemetryComparisonSection (collector)", () => {
       />
     );
     expect(screen.getByText("No differences found")).toBeInTheDocument();
+  });
+
+  it("skips a release the component doesn't exist in when defaulting 'From', instead of the global release list", () => {
+    // Regression guard: "0.155.0" is a real Collector release, but this component only
+    // shipped in 0.156.0 and 0.154.0 (e.g. a core-only component skipping a contrib-only
+    // release). Defaulting to the immediately-prior *global* release would pass a version
+    // where loadComponent() throws, making every metric misreport as "added"/"removed".
+    vi.mocked(useComponentVersions).mockReturnValue({
+      data: ["0.156.0", "0.154.0"],
+      loading: false,
+      error: null,
+    });
+    mockResult();
+    render(
+      <TelemetryComparisonSection
+        distribution="core"
+        name="memorylimiterprocessor"
+        versions={VERSIONS}
+        currentVersion="0.156.0"
+      />
+    );
+    expect(useTelemetryComparison).toHaveBeenCalledWith(
+      "core",
+      "memorylimiterprocessor",
+      "0.154.0",
+      "0.156.0"
+    );
+  });
+
+  it("only offers releases the component exists in in the version selectors", () => {
+    vi.mocked(useComponentVersions).mockReturnValue({
+      data: ["0.156.0", "0.154.0"],
+      loading: false,
+      error: null,
+    });
+    mockResult();
+    render(
+      <TelemetryComparisonSection
+        distribution="core"
+        name="memorylimiterprocessor"
+        versions={VERSIONS}
+        currentVersion="0.156.0"
+      />
+    );
+    const fromSelect = screen.getByLabelText("From");
+    expect(fromSelect).toHaveTextContent("0.156.0");
+    expect(fromSelect).toHaveTextContent("0.154.0");
+    expect(fromSelect).not.toHaveTextContent("0.155.0");
+  });
+
+  it("shows the loading state while the component's own version list is still loading", () => {
+    vi.mocked(useComponentVersions).mockReturnValue({ data: null, loading: true, error: null });
+    mockResult();
+    render(
+      <TelemetryComparisonSection
+        distribution="core"
+        name="memorylimiterprocessor"
+        versions={VERSIONS}
+        currentVersion="0.156.0"
+      />
+    );
+    expect(screen.getByRole("status")).toBeInTheDocument();
+  });
+
+  it("shows an error state when the component's own version list fails to load", () => {
+    vi.mocked(useComponentVersions).mockReturnValue({
+      data: null,
+      loading: false,
+      error: new Error("could not load component versions"),
+    });
+    mockResult();
+    render(
+      <TelemetryComparisonSection
+        distribution="core"
+        name="memorylimiterprocessor"
+        versions={VERSIONS}
+        currentVersion="0.156.0"
+      />
+    );
+    expect(screen.getByText("could not load component versions")).toBeInTheDocument();
   });
 
   it("renders added/removed/changed metric cards from the diff result", () => {
