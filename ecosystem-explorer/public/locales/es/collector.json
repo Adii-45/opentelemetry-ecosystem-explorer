@@ -329,12 +329,24 @@
     },
     "unit": "Unidad",
     "descriptionChanged": "Descripción modificada",
+    "extendedDocumentationChanged": "Documentación extendida modificada",
     "enabledChanged": "Estado habilitado modificado",
     "enabledValue": {
       "enabled": "Habilitado",
       "disabled": "Deshabilitado"
     },
+    "optionalChanged": "Estado opcional modificado",
+    "optionalValue": {
+      "yes": "Sí",
+      "no": "No"
+    },
     "stabilityChanged": "Estabilidad modificada",
+    "deprecatedChanged": "Estado de obsolescencia modificado",
+    "deprecatedValue": {
+      "deprecated": "Obsoleto",
+      "notDeprecated": "No obsoleto"
+    },
+    "prefixChanged": "Prefijo modificado",
     "metricTypeChanged": "Tipo de métrica modificado",
     "descriptorChanged": "Descriptor modificado",
     "descriptorFields": {

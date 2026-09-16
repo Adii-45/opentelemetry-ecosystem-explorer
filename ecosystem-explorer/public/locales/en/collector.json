@@ -329,12 +329,24 @@
     },
     "unit": "Unit",
     "descriptionChanged": "Description changed",
+    "extendedDocumentationChanged": "Extended documentation changed",
     "enabledChanged": "Enabled state changed",
     "enabledValue": {
       "enabled": "Enabled",
       "disabled": "Disabled"
     },
+    "optionalChanged": "Optional state changed",
+    "optionalValue": {
+      "yes": "Yes",
+      "no": "No"
+    },
     "stabilityChanged": "Stability changed",
+    "deprecatedChanged": "Deprecation changed",
+    "deprecatedValue": {
+      "deprecated": "Deprecated",
+      "notDeprecated": "Not deprecated"
+    },
+    "prefixChanged": "Prefix changed",
     "metricTypeChanged": "Metric type changed",
     "descriptorChanged": "Descriptor changed",
     "descriptorFields": {

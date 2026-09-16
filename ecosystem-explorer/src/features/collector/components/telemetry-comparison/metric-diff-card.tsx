@@ -67,6 +67,22 @@ export function MetricDiffCard({ diff }: MetricDiffCardProps) {
           </div>
         )}
 
+        {status === "changed" && changes?.extendedDocumentation && (
+          <div className="space-y-2">
+            <span className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
+              {t("diffCard.extendedDocumentationChanged")}
+            </span>
+            <div className="border-border/30 space-y-1 rounded-lg border bg-black/[0.02] p-3 dark:bg-white/[0.03]">
+              <p className="text-sm text-red-700 line-through opacity-60 dark:text-red-400">
+                {changes.extendedDocumentation.before ?? "—"}
+              </p>
+              <p className="text-sm text-green-700 dark:text-green-400">
+                {changes.extendedDocumentation.after ?? "—"}
+              </p>
+            </div>
+          </div>
+        )}
+
         {status !== "removed" && (
           <div className="border-border/30 flex flex-wrap items-center gap-3 border-b pb-6">
             <span className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
@@ -108,6 +124,27 @@ export function MetricDiffCard({ diff }: MetricDiffCardProps) {
           </div>
         )}
 
+        {status === "changed" && changes?.optional && (
+          <div className="flex items-center gap-3">
+            <span className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
+              {t("diffCard.optionalChanged")}
+            </span>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-red-700 line-through opacity-60 dark:text-red-400">
+                {changes.optional.before
+                  ? t("diffCard.optionalValue.yes")
+                  : t("diffCard.optionalValue.no")}
+              </span>
+              <span className="text-muted-foreground">→</span>
+              <span className="text-green-700 dark:text-green-400">
+                {changes.optional.after
+                  ? t("diffCard.optionalValue.yes")
+                  : t("diffCard.optionalValue.no")}
+              </span>
+            </div>
+          </div>
+        )}
+
         {status === "changed" && changes?.stability && (
           <div className="flex items-center gap-3">
             <span className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
@@ -121,6 +158,44 @@ export function MetricDiffCard({ diff }: MetricDiffCardProps) {
               <span className="text-green-700 dark:text-green-400">
                 {changes.stability.after ?? "—"}
               </span>
+            </div>
+          </div>
+        )}
+
+        {status === "changed" && changes?.deprecated && (
+          <div className="flex items-center gap-3">
+            <span className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
+              {t("diffCard.deprecatedChanged")}
+            </span>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-red-700 line-through opacity-60 dark:text-red-400">
+                {changes.deprecated.before
+                  ? (changes.deprecated.before.note ?? t("diffCard.deprecatedValue.deprecated"))
+                  : t("diffCard.deprecatedValue.notDeprecated")}
+              </span>
+              <span className="text-muted-foreground">→</span>
+              <span className="text-green-700 dark:text-green-400">
+                {changes.deprecated.after
+                  ? (changes.deprecated.after.note ?? t("diffCard.deprecatedValue.deprecated"))
+                  : t("diffCard.deprecatedValue.notDeprecated")}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {status === "changed" && changes?.prefix && (
+          <div className="flex items-center gap-3">
+            <span className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
+              {t("diffCard.prefixChanged")}
+            </span>
+            <div className="flex items-center gap-2">
+              <code className="rounded border border-red-500/30 bg-red-500/10 px-2 py-1 text-sm text-red-700 line-through dark:text-red-400">
+                {changes.prefix.before ?? "—"}
+              </code>
+              <span className="text-muted-foreground">→</span>
+              <code className="rounded border border-green-500/30 bg-green-500/10 px-2 py-1 text-sm text-green-700 dark:text-green-400">
+                {changes.prefix.after ?? "—"}
+              </code>
             </div>
           </div>
         )}

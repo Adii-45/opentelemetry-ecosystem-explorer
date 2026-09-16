@@ -100,6 +100,97 @@ describe("MetricDiffCard", () => {
     expect(screen.getByText("[1, 2, 3, 4]")).toBeInTheDocument();
   });
 
+  it("renders an extendedDocumentation-only change, not a blank Changed card", () => {
+    // Regression guard: extendedDocumentation is part of CollectorMetricChanges but was
+    // never rendered, so a Changed card could have no visible change at all.
+    const diff: CollectorMetricDiff = {
+      status: "changed",
+      name: "my.metric",
+      metric: makeMetric({ extended_documentation: "after" }),
+      changes: {
+        extendedDocumentation: { before: "before", after: "after" },
+        attributes: { added: [], removed: [], changed: [] },
+      },
+    };
+    render(<MetricDiffCard diff={diff} />);
+    expect(screen.getByText("Extended documentation changed")).toBeInTheDocument();
+    expect(screen.getByText("before")).toBeInTheDocument();
+    expect(screen.getByText("after")).toBeInTheDocument();
+  });
+
+  it("renders an optional-only change, not a blank Changed card", () => {
+    const diff: CollectorMetricDiff = {
+      status: "changed",
+      name: "my.metric",
+      metric: makeMetric({ optional: true }),
+      changes: {
+        optional: { before: false, after: true },
+        attributes: { added: [], removed: [], changed: [] },
+      },
+    };
+    render(<MetricDiffCard diff={diff} />);
+    expect(screen.getByText("Optional state changed")).toBeInTheDocument();
+    expect(screen.getByText("Yes")).toBeInTheDocument();
+    expect(screen.getByText("No")).toBeInTheDocument();
+  });
+
+  it("renders a prefix-only change, not a blank Changed card", () => {
+    // Jay: prefix participates in the exported metric name, so it must be a visible change.
+    const diff: CollectorMetricDiff = {
+      status: "changed",
+      name: "my.metric",
+      metric: makeMetric({ prefix: "otelcol.v2." }),
+      changes: {
+        prefix: { before: "otelcol.", after: "otelcol.v2." },
+        attributes: { added: [], removed: [], changed: [] },
+      },
+    };
+    render(<MetricDiffCard diff={diff} />);
+    expect(screen.getByText("Prefix changed")).toBeInTheDocument();
+    expect(screen.getByText("otelcol.")).toBeInTheDocument();
+    expect(screen.getByText("otelcol.v2.")).toBeInTheDocument();
+  });
+
+  it("renders a deprecated-only change (becoming deprecated), not a blank Changed card", () => {
+    const diff: CollectorMetricDiff = {
+      status: "changed",
+      name: "my.metric",
+      metric: makeMetric({
+        deprecated: { note: "Use my.other.metric instead", since: "0.150.0" },
+      }),
+      changes: {
+        deprecated: {
+          before: undefined,
+          after: { note: "Use my.other.metric instead", since: "0.150.0" },
+        },
+        attributes: { added: [], removed: [], changed: [] },
+      },
+    };
+    render(<MetricDiffCard diff={diff} />);
+    expect(screen.getByText("Deprecation changed")).toBeInTheDocument();
+    expect(screen.getByText("Not deprecated")).toBeInTheDocument();
+    expect(screen.getByText("Use my.other.metric instead")).toBeInTheDocument();
+  });
+
+  it("renders a deprecated-only change (note updated) without a fallback placeholder", () => {
+    const diff: CollectorMetricDiff = {
+      status: "changed",
+      name: "my.metric",
+      metric: makeMetric({ deprecated: { note: "new note", since: "0.150.0" } }),
+      changes: {
+        deprecated: {
+          before: { note: "old note", since: "0.140.0" },
+          after: { note: "new note", since: "0.150.0" },
+        },
+        attributes: { added: [], removed: [], changed: [] },
+      },
+    };
+    render(<MetricDiffCard diff={diff} />);
+    expect(screen.getByText("old note")).toBeInTheDocument();
+    expect(screen.getByText("new note")).toBeInTheDocument();
+    expect(screen.queryByText("Deprecated")).not.toBeInTheDocument();
+  });
+
   it("still renders the metricType row for a true instrument type change", () => {
     const diff: CollectorMetricDiff = {
       status: "changed",
