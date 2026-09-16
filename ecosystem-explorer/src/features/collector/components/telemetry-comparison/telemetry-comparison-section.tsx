@@ -81,6 +81,9 @@ export function TelemetryComparisonSection({
   }
 
   if (componentVersionsError) {
+    // Mirrors collector-detail-page.tsx's sibling failure branch: the raw error (an internal
+    // message from collector-data.ts, e.g. "Collector versions index returned null
+    // unexpectedly") is never rendered to users -- only the localized, generic explanation.
     return (
       <div className="flex min-h-[200px] items-center justify-center">
         <div className="max-w-2xl rounded-lg border border-red-500/30 bg-red-500/10 p-6">
@@ -91,10 +94,36 @@ export function TelemetryComparisonSection({
             />
             <div className="space-y-1">
               <p className="font-medium text-red-700 dark:text-red-400">
-                {t("telemetryComparison.error.title")}
+                {t("detail.view.comparisonUnavailable.title")}
               </p>
-              <p className="text-sm text-red-700/80 dark:text-red-400/80">
-                {componentVersionsError.message}
+              <p className="text-sm text-red-700 dark:text-red-400">
+                {t("detail.view.comparisonUnavailable.message")}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (scopedVersions.length < 2) {
+    // The component exists in zero or one of the passed-in releases, so there is no second
+    // version to compare against. Showing the version selector + "same version selected"
+    // warning here would tell the user to do something impossible.
+    return (
+      <div className="flex min-h-[200px] items-center justify-center">
+        <div className="rounded-lg border border-orange-500/30 bg-orange-500/10 p-6">
+          <div className="flex items-start gap-3">
+            <AlertCircle
+              className="mt-0.5 h-5 w-5 flex-shrink-0 text-orange-600 dark:text-orange-400"
+              aria-hidden="true"
+            />
+            <div className="space-y-1">
+              <p className="font-medium text-orange-700 dark:text-orange-400">
+                {t("telemetryComparison.warnings.insufficientVersions.title")}
+              </p>
+              <p className="text-sm text-orange-700 dark:text-orange-400">
+                {t("telemetryComparison.warnings.insufficientVersions.message")}
               </p>
             </div>
           </div>
@@ -131,7 +160,7 @@ export function TelemetryComparisonSection({
                 <p className="font-medium text-red-700 dark:text-red-400">
                   {t("telemetryComparison.error.title")}
                 </p>
-                <p className="text-sm text-red-700/80 dark:text-red-400/80">{error.message}</p>
+                <p className="text-sm text-red-700 dark:text-red-400">{error.message}</p>
               </div>
             </div>
           </div>
@@ -150,12 +179,12 @@ export function TelemetryComparisonSection({
                 {t("telemetryComparison.warnings.availability.title")}
               </p>
               {fromNotFound && (
-                <p className="text-sm text-orange-700/80 dark:text-orange-400/80">
+                <p className="text-sm text-orange-700 dark:text-orange-400">
                   {t("telemetryComparison.warnings.availability.fromNotFound", { fromVersion })}
                 </p>
               )}
               {toNotFound && !fromNotFound && (
-                <p className="text-sm text-orange-700/80 dark:text-orange-400/80">
+                <p className="text-sm text-orange-700 dark:text-orange-400">
                   {t("telemetryComparison.warnings.availability.toNotFound", { toVersion })}
                 </p>
               )}
@@ -176,7 +205,7 @@ export function TelemetryComparisonSection({
                 <p className="font-medium text-orange-700 dark:text-orange-400">
                   {t("telemetryComparison.warnings.sameVersion.title")}
                 </p>
-                <p className="text-sm text-orange-700/80 dark:text-orange-400/80">
+                <p className="text-sm text-orange-700 dark:text-orange-400">
                   {t("telemetryComparison.warnings.sameVersion.message")}
                 </p>
               </div>

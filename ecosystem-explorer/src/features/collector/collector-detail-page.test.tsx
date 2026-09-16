@@ -257,9 +257,10 @@ describe("CollectorDetailPage", () => {
     await user.click(comparisonButton);
 
     expect(screen.getByText("Comparison unavailable")).toBeInTheDocument();
-    expect(
-      screen.getByText("Could not load the list of versions needed for comparison.")
-    ).toBeInTheDocument();
+    const message = screen.getByText("Could not load the list of versions needed for comparison.");
+    expect(message).toBeInTheDocument();
+    // Regression guard: this block previously used a low-contrast text-red-700/80 class.
+    expect(message.className).not.toMatch(/\/80/);
   });
 
   it("resolves the version from the URL immediately when ?version= is present, independent of the versions fetch", () => {

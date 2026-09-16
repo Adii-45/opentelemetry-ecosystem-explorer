@@ -113,7 +113,7 @@ describe("TelemetryComparisonSection (collector)", () => {
     expect(screen.getByRole("status")).toBeInTheDocument();
   });
 
-  it("renders an error message", () => {
+  it("renders an error message without a low-contrast /80 opacity class", () => {
     mockResult({ error: new Error("boom") });
     render(
       <TelemetryComparisonSection
@@ -123,10 +123,12 @@ describe("TelemetryComparisonSection (collector)", () => {
         currentVersion="0.156.0"
       />
     );
-    expect(screen.getByText("boom")).toBeInTheDocument();
+    const message = screen.getByText("boom");
+    expect(message).toBeInTheDocument();
+    expect(message.className).not.toMatch(/\/80/);
   });
 
-  it("renders a same-version warning and no diff results when both versions match", () => {
+  it("renders a same-version warning (without a low-contrast /80 class) and no diff results when both versions match", () => {
     mockResult({ fromVersion: "0.156.0", toVersion: "0.156.0", diffResult: { metrics: [] } });
     render(
       <TelemetryComparisonSection
@@ -136,9 +138,9 @@ describe("TelemetryComparisonSection (collector)", () => {
         currentVersion="0.156.0"
       />
     );
-    expect(
-      screen.getByText("Choose two different versions to see a comparison.")
-    ).toBeInTheDocument();
+    const message = screen.getByText("Choose two different versions to see a comparison.");
+    expect(message).toBeInTheDocument();
+    expect(message.className).not.toMatch(/\/80/);
   });
 
   it("renders the empty-diff state when nothing changed", () => {
@@ -218,11 +220,13 @@ describe("TelemetryComparisonSection (collector)", () => {
     expect(screen.getByRole("status")).toBeInTheDocument();
   });
 
-  it("shows an error state when the component's own version list fails to load", () => {
+  it("shows a localized error state when the component's own version list fails to load, never the raw internal error", () => {
+    // Regression guard: collector-data.ts throws internal messages like "Collector versions
+    // index returned null unexpectedly" -- these must never reach the user directly.
     vi.mocked(useComponentVersions).mockReturnValue({
       data: null,
       loading: false,
-      error: new Error("could not load component versions"),
+      error: new Error("Collector versions index returned null unexpectedly"),
     });
     mockResult();
     render(
@@ -233,7 +237,79 @@ describe("TelemetryComparisonSection (collector)", () => {
         currentVersion="0.156.0"
       />
     );
-    expect(screen.getByText("could not load component versions")).toBeInTheDocument();
+    expect(screen.getByText("Comparison unavailable")).toBeInTheDocument();
+    expect(
+      screen.getByText("Could not load the list of versions needed for comparison.")
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Collector versions index returned null unexpectedly")
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a dedicated 'insufficient versions' message, not the version selector or 'same version' warning, when the component exists in only one release", () => {
+    // Jay's repro: a component present in exactly one published release must not be told
+    // "choose two different versions" -- there is no second version to choose.
+    vi.mocked(useComponentVersions).mockReturnValue({
+      data: ["0.156.0"],
+      loading: false,
+      error: null,
+    });
+    mockResult();
+    render(
+      <TelemetryComparisonSection
+        distribution="contrib"
+        name="adaptivetailsamplingprocessor"
+        versions={VERSIONS}
+        currentVersion="0.156.0"
+      />
+    );
+    expect(screen.getByText("Version comparison unavailable")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "This component is only present in one release, so there is no other version to compare it against."
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Choose two different versions to see a comparison.")
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("From")).not.toBeInTheDocument();
+  });
+
+  it("shows the same 'insufficient versions' message when the component exists in zero scoped releases", () => {
+    vi.mocked(useComponentVersions).mockReturnValue({
+      data: [],
+      loading: false,
+      error: null,
+    });
+    mockResult();
+    render(
+      <TelemetryComparisonSection
+        distribution="core"
+        name="memorylimiterprocessor"
+        versions={VERSIONS}
+        currentVersion="0.156.0"
+      />
+    );
+    expect(screen.getByText("Version comparison unavailable")).toBeInTheDocument();
+  });
+
+  it("renders the normal comparison UI (not the insufficient-versions message) when two or more scoped versions exist", () => {
+    vi.mocked(useComponentVersions).mockReturnValue({
+      data: ["0.156.0", "0.155.0"],
+      loading: false,
+      error: null,
+    });
+    mockResult();
+    render(
+      <TelemetryComparisonSection
+        distribution="core"
+        name="memorylimiterprocessor"
+        versions={VERSIONS}
+        currentVersion="0.156.0"
+      />
+    );
+    expect(screen.queryByText("Version comparison unavailable")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("From")).toBeInTheDocument();
   });
 
   it("renders added/removed/changed metric cards from the diff result", () => {

@@ -14,25 +14,13 @@
  * limitations under the License.
  */
 
-import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { SectionDivider } from "@/components/ui/section-divider";
 import type { CollectorTelemetryDiffResult } from "@/types/collector";
 import { MetricDiffCard } from "./metric-diff-card";
 
 interface DiffResultsSectionProps {
   diffResult: CollectorTelemetryDiffResult;
-}
-
-function SectionDivider({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex items-center justify-center gap-4">
-      <div className="to-border h-px w-16 bg-gradient-to-r from-transparent" />
-      <span className="text-muted-foreground text-sm font-medium tracking-wider uppercase">
-        {children}
-      </span>
-      <div className="to-border h-px w-16 bg-gradient-to-l from-transparent" />
-    </div>
-  );
 }
 
 export function DiffResultsSection({ diffResult }: DiffResultsSectionProps) {
@@ -60,7 +48,7 @@ export function DiffResultsSection({ diffResult }: DiffResultsSectionProps) {
     <div className="space-y-12">
       {addedOrRemoved.length > 0 && (
         <div className="space-y-6">
-          <SectionDivider>{t("diffResults.addedRemovedHeader")}</SectionDivider>
+          <SectionDivider className="my-0">{t("diffResults.addedRemovedHeader")}</SectionDivider>
           <div className="mx-auto max-w-3xl space-y-6">
             {addedOrRemoved.map((metricDiff) => (
               <MetricDiffCard key={metricDiff.name} diff={metricDiff} />
@@ -71,7 +59,7 @@ export function DiffResultsSection({ diffResult }: DiffResultsSectionProps) {
 
       {changed.length > 0 && (
         <div className="space-y-6">
-          <SectionDivider>{t("diffResults.changedHeader")}</SectionDivider>
+          <SectionDivider className="my-0">{t("diffResults.changedHeader")}</SectionDivider>
           <div className="mx-auto max-w-3xl space-y-6">
             {changed.map((metricDiff) => (
               <MetricDiffCard key={metricDiff.name} diff={metricDiff} />

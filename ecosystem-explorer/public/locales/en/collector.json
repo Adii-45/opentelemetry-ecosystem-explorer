@@ -304,6 +304,10 @@
       "sameVersion": {
         "title": "Same version selected",
         "message": "Choose two different versions to see a comparison."
+      },
+      "insufficientVersions": {
+        "title": "Version comparison unavailable",
+        "message": "This component is only present in one release, so there is no other version to compare it against."
       }
     }
   },

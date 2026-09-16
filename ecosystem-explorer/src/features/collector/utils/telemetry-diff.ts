@@ -158,13 +158,20 @@ function deprecatedEqual(
   return a.note === b.note && a.since === b.since;
 }
 
+/**
+ * Compares the union of keys actually present on either side, rather than a fixed list of
+ * known field names, so a warning field neither side happens to omit -- including one added
+ * upstream after this type was last updated -- is never silently skipped.
+ */
 function warningsEqual(a?: CollectorMetricWarnings, b?: CollectorMetricWarnings): boolean {
   if (!a || !b) return a === b;
-  return (
-    a.if_enabled === b.if_enabled &&
-    a.if_enabled_not_set === b.if_enabled_not_set &&
-    a.if_configured === b.if_configured
-  );
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]) as Set<
+    keyof CollectorMetricWarnings
+  >;
+  for (const key of keys) {
+    if (a[key] !== b[key]) return false;
+  }
+  return true;
 }
 
 /** Compares one metric present in both versions, keyed by `name`. */

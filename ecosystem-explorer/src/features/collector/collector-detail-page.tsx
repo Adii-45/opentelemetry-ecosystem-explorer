@@ -612,7 +612,7 @@ export function CollectorDetailPage() {
                               <p className="font-medium text-red-700 dark:text-red-400">
                                 {t("detail.view.comparisonUnavailable.title")}
                               </p>
-                              <p className="text-sm text-red-700/80 dark:text-red-400/80">
+                              <p className="text-sm text-red-700 dark:text-red-400">
                                 {t("detail.view.comparisonUnavailable.message")}
                               </p>
                             </div>
