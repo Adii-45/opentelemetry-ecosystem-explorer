@@ -191,6 +191,74 @@ describe("MetricDiffCard", () => {
     expect(screen.queryByText("Deprecated")).not.toBeInTheDocument();
   });
 
+  it("renders a warnings-only change (single field), not a blank Changed card", () => {
+    // Regression guard: warnings is part of CollectorMetricChanges but was never rendered,
+    // so a warnings-only Changed card had no visible change at all.
+    const diff: CollectorMetricDiff = {
+      status: "changed",
+      name: "my.metric",
+      metric: makeMetric({
+        warnings: { if_enabled: "This metric is deprecated and will be removed soon." },
+      }),
+      changes: {
+        warnings: {
+          before: undefined,
+          after: { if_enabled: "This metric is deprecated and will be removed soon." },
+        },
+        attributes: { added: [], removed: [], changed: [] },
+      },
+    };
+    render(<MetricDiffCard diff={diff} />);
+    expect(screen.getByText("Warnings changed")).toBeInTheDocument();
+    expect(screen.getByText("If enabled:")).toBeInTheDocument();
+    expect(
+      screen.getByText("This metric is deprecated and will be removed soon.")
+    ).toBeInTheDocument();
+    // Only the field that actually differs is rendered.
+    expect(screen.queryByText("If configured:")).not.toBeInTheDocument();
+    expect(screen.queryByText("If enabled not set:")).not.toBeInTheDocument();
+  });
+
+  it("renders each changed warnings field when more than one differs", () => {
+    const diff: CollectorMetricDiff = {
+      status: "changed",
+      name: "my.metric",
+      metric: makeMetric({
+        warnings: { if_enabled: "new if_enabled", if_configured: "new if_configured" },
+      }),
+      changes: {
+        warnings: {
+          before: { if_enabled: "old if_enabled", if_configured: "old if_configured" },
+          after: { if_enabled: "new if_enabled", if_configured: "new if_configured" },
+        },
+        attributes: { added: [], removed: [], changed: [] },
+      },
+    };
+    render(<MetricDiffCard diff={diff} />);
+    expect(screen.getByText("old if_enabled")).toBeInTheDocument();
+    expect(screen.getByText("new if_enabled")).toBeInTheDocument();
+    expect(screen.getByText("old if_configured")).toBeInTheDocument();
+    expect(screen.getByText("new if_configured")).toBeInTheDocument();
+  });
+
+  it("renders the unit change through i18n interpolation, not hardcoded English", () => {
+    const diff: CollectorMetricDiff = {
+      status: "changed",
+      name: "my.metric",
+      metric: makeMetric({ unit: "s" }),
+      changes: {
+        unit: { before: "ms", after: "s" },
+        attributes: { added: [], removed: [], changed: [] },
+      },
+    };
+    const { container } = render(<MetricDiffCard diff={diff} />);
+    // The old unit value must be rendered as its own styled element via translation
+    // interpolation (Trans), not concatenated into a hardcoded, non-translatable string.
+    const oldUnitChip = screen.getByText("ms");
+    expect(oldUnitChip.tagName).toBe("CODE");
+    expect(container.textContent).toContain("(was: ms)");
+  });
+
   it("still renders the metricType row for a true instrument type change", () => {
     const diff: CollectorMetricDiff = {
       status: "changed",

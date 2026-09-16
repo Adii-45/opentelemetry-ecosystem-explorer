@@ -50,7 +50,7 @@ export function AttributeDiffList({ changes }: AttributeDiffListProps) {
     <div className="border-border/30 overflow-hidden rounded-lg border">
       <table aria-label={t("diffAttributeTable.ariaLabel")} className="w-full border-collapse">
         <thead>
-          <tr className="bg-muted/30">
+          <tr className="bg-white/5">
             <th
               scope="col"
               className="text-muted-foreground p-3 text-left text-[10px] font-bold tracking-widest uppercase"
@@ -79,7 +79,7 @@ export function AttributeDiffList({ changes }: AttributeDiffListProps) {
         </thead>
         <tbody>
           {changes.added.map((attr, index) => (
-            <tr key={`added-${attr.key}`} className={index % 2 === 1 ? "bg-muted/20" : ""}>
+            <tr key={`added-${attr.key}`} className={index % 2 === 1 ? "bg-muted/40" : ""}>
               <td className="p-4">
                 <div className="flex items-center gap-2">
                   <Plus className="h-3 w-3 text-green-600 dark:text-green-400" aria-hidden="true" />
@@ -103,7 +103,7 @@ export function AttributeDiffList({ changes }: AttributeDiffListProps) {
           {changes.removed.map((attr, index) => (
             <tr
               key={`removed-${attr.key}`}
-              className={(index + changes.added.length) % 2 === 1 ? "bg-muted/20" : ""}
+              className={(index + changes.added.length) % 2 === 1 ? "bg-muted/40" : ""}
             >
               <td className="p-4">
                 <div className="flex items-center gap-2">
@@ -133,7 +133,7 @@ export function AttributeDiffList({ changes }: AttributeDiffListProps) {
                 key={`changed-${change.key}`}
                 className={
                   (index + changes.added.length + changes.removed.length) % 2 === 1
-                    ? "bg-muted/20"
+                    ? "bg-muted/40"
                     : ""
                 }
               >

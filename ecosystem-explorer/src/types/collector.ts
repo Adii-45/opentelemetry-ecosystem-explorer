@@ -122,6 +122,8 @@ export interface CollectorMetric {
   prefix?: string;
   /** Present when the metric is deprecated; carries the replacement guidance and version. */
   deprecated?: { note?: string; since?: string };
+  /** Warnings shown to users under specific configuration conditions. */
+  warnings?: CollectorMetricWarnings;
   /** Sum metric type descriptor. Present when the metric is a sum. */
   sum?: MetricValueDescriptor & { monotonic: boolean };
   /** Gauge metric type descriptor. Present when the metric is a gauge. */
@@ -130,6 +132,20 @@ export interface CollectorMetric {
   histogram?: MetricValueDescriptor & { bucket_boundaries?: number[] };
   /** Attribute keys referencing the component-level attributes map. */
   attributes?: string[];
+}
+
+/**
+ * Warnings shown to users under specific configuration conditions.
+ * Modeled after the `warnings` block in the metadata.yaml schema used by the
+ * collector-contrib repo (see `metrics.<metric.name>.warnings`).
+ */
+export interface CollectorMetricWarnings {
+  /** Shown if the metric is enabled in user config (e.g. a deprecated default metric). */
+  if_enabled?: string;
+  /** Shown if `enabled` is not set explicitly in user config. */
+  if_enabled_not_set?: string;
+  /** Shown if the metric is configured by the user in any way (e.g. a deprecated optional metric). */
+  if_configured?: string;
 }
 
 /**
@@ -265,6 +281,10 @@ export interface CollectorMetricChanges {
   deprecated?: {
     before?: { note?: string; since?: string };
     after?: { note?: string; since?: string };
+  };
+  warnings?: {
+    before?: CollectorMetricWarnings;
+    after?: CollectorMetricWarnings;
   };
   attributes: CollectorAttributeChanges;
 }

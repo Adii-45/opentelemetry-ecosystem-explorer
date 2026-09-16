@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { GlowBadge } from "@/components/ui/glow-badge";
 import type { CollectorMetricDiff } from "@/types/collector";
 import { AttributeDiffList } from "./attribute-diff-list";
@@ -92,12 +92,17 @@ export function MetricDiffCard({ diff }: MetricDiffCardProps) {
               {metric.unit || "1"}
             </code>
             {status === "changed" && changes?.unit && (
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground text-xs">(was:</span>
-                <code className="rounded border border-red-500/30 bg-red-500/10 px-2 py-1 text-sm text-red-700 line-through dark:text-red-400">
-                  {changes.unit.before}
-                </code>
-                <span className="text-muted-foreground text-xs">)</span>
+              <div className="text-muted-foreground flex items-center gap-2 text-xs">
+                <Trans
+                  i18nKey="diffCard.unitWas"
+                  ns="collector"
+                  values={{ unit: changes.unit.before }}
+                  components={{
+                    unit: (
+                      <code className="rounded border border-red-500/30 bg-red-500/10 px-2 py-1 text-sm text-red-700 line-through dark:text-red-400" />
+                    ),
+                  }}
+                />
               </div>
             )}
           </div>
@@ -179,6 +184,40 @@ export function MetricDiffCard({ diff }: MetricDiffCardProps) {
                   ? (changes.deprecated.after.note ?? t("diffCard.deprecatedValue.deprecated"))
                   : t("diffCard.deprecatedValue.notDeprecated")}
               </span>
+            </div>
+          </div>
+        )}
+
+        {status === "changed" && changes?.warnings && (
+          <div className="space-y-2">
+            <span className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
+              {t("diffCard.warningsChanged")}
+            </span>
+            <div className="space-y-2">
+              {(
+                [
+                  ["if_enabled", "ifEnabled"],
+                  ["if_enabled_not_set", "ifEnabledNotSet"],
+                  ["if_configured", "ifConfigured"],
+                ] as const
+              ).map(([field, labelKey]) => {
+                const before = changes.warnings?.before?.[field];
+                const after = changes.warnings?.after?.[field];
+                if (before === after) return null;
+                return (
+                  <div key={field} className="space-y-1">
+                    <span className="text-muted-foreground text-xs">
+                      {t(`diffCard.warningsFields.${labelKey}`)}:
+                    </span>
+                    <div className="border-border/30 space-y-1 rounded-lg border bg-black/[0.02] p-3 dark:bg-white/[0.03]">
+                      <p className="text-sm text-red-700 line-through opacity-60 dark:text-red-400">
+                        {before ?? "—"}
+                      </p>
+                      <p className="text-sm text-green-700 dark:text-green-400">{after ?? "—"}</p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

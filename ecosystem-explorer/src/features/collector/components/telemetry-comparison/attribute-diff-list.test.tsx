@@ -102,4 +102,27 @@ describe("AttributeDiffList", () => {
     const { container } = render(<AttributeDiffList changes={changes()} />);
     expect(container).toBeEmptyDOMElement();
   });
+
+  it("uses the DESIGN.md striped-table convention (bg-white/5 header, bg-muted/40 odd rows), matching the Java Agent table", () => {
+    // Regression guard: this table previously used bg-muted/30 (header) and bg-muted/20 (odd
+    // rows), an invented shade that didn't match DESIGN.md or attribute-diff-table.tsx (java-agent).
+    const { container } = render(
+      <AttributeDiffList
+        changes={changes({
+          added: [
+            { key: "attr-a", definition: { description: "d", type: "string" } },
+            { key: "attr-b", definition: { description: "d", type: "string" } },
+          ],
+        })}
+      />
+    );
+    const headerRow = container.querySelector("thead tr");
+    expect(headerRow).toHaveClass("bg-white/5");
+    expect(headerRow).not.toHaveClass("bg-muted/30");
+
+    const bodyRows = container.querySelectorAll("tbody tr");
+    expect(bodyRows[0]).not.toHaveClass("bg-muted/40");
+    expect(bodyRows[1]).toHaveClass("bg-muted/40");
+    expect(bodyRows[1]).not.toHaveClass("bg-muted/20");
+  });
 });

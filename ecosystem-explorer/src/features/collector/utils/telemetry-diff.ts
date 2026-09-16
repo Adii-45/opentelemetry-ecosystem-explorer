@@ -22,6 +22,7 @@ import type {
   CollectorMetricChanges,
   CollectorMetricDescriptorChanges,
   CollectorMetricDiff,
+  CollectorMetricWarnings,
   CollectorTelemetryDiffResult,
   MetricValueDescriptor,
   ResolvedCollectorAttribute,
@@ -157,6 +158,15 @@ function deprecatedEqual(
   return a.note === b.note && a.since === b.since;
 }
 
+function warningsEqual(a?: CollectorMetricWarnings, b?: CollectorMetricWarnings): boolean {
+  if (!a || !b) return a === b;
+  return (
+    a.if_enabled === b.if_enabled &&
+    a.if_enabled_not_set === b.if_enabled_not_set &&
+    a.if_configured === b.if_configured
+  );
+}
+
 /** Compares one metric present in both versions, keyed by `name`. */
 function compareMetric(
   name: string,
@@ -180,6 +190,7 @@ function compareMetric(
   const optionalChanged = fromMetric.optional !== toMetric.optional;
   const prefixChanged = fromMetric.prefix !== toMetric.prefix;
   const deprecatedChanged = !deprecatedEqual(fromMetric.deprecated, toMetric.deprecated);
+  const warningsChanged = !warningsEqual(fromMetric.warnings, toMetric.warnings);
   const descriptorChanges = compareMetricDescriptor(fromMetric, toMetric);
   const descriptorChanged =
     descriptorChanges.metricType !== undefined || descriptorChanges.descriptor !== undefined;
@@ -193,6 +204,7 @@ function compareMetric(
     !optionalChanged &&
     !prefixChanged &&
     !deprecatedChanged &&
+    !warningsChanged &&
     !descriptorChanged &&
     !attributesChanged
   ) {
@@ -227,6 +239,9 @@ function compareMetric(
   }
   if (deprecatedChanged) {
     changes.deprecated = { before: fromMetric.deprecated, after: toMetric.deprecated };
+  }
+  if (warningsChanged) {
+    changes.warnings = { before: fromMetric.warnings, after: toMetric.warnings };
   }
 
   return { status: "changed", name, metric: toMetric, changes };

@@ -328,6 +328,7 @@
       "changed": "Changed"
     },
     "unit": "Unit",
+    "unitWas": "(was: <unit>{{unit}}</unit>)",
     "descriptionChanged": "Description changed",
     "extendedDocumentationChanged": "Extended documentation changed",
     "enabledChanged": "Enabled state changed",
@@ -345,6 +346,12 @@
     "deprecatedValue": {
       "deprecated": "Deprecated",
       "notDeprecated": "Not deprecated"
+    },
+    "warningsChanged": "Warnings changed",
+    "warningsFields": {
+      "ifEnabled": "If enabled",
+      "ifEnabledNotSet": "If enabled not set",
+      "ifConfigured": "If configured"
     },
     "prefixChanged": "Prefix changed",
     "metricTypeChanged": "Metric type changed",

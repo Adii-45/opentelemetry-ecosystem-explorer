@@ -344,6 +344,107 @@ describe("compareCollectorTelemetry", () => {
     });
   });
 
+  it("detects a warnings-only change (added: from undefined to a populated warnings object)", () => {
+    const from = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ warnings: undefined }) } },
+    });
+    const to = makeComponent({
+      telemetry: {
+        metrics: {
+          "my.metric": makeMetric({
+            warnings: { if_enabled: "This metric is deprecated and will be removed soon." },
+          }),
+        },
+      },
+    });
+    const result = compareCollectorTelemetry(from, to);
+    expect(result.metrics[0].status).toBe("changed");
+    expect(result.metrics[0].changes?.warnings).toEqual({
+      before: undefined,
+      after: { if_enabled: "This metric is deprecated and will be removed soon." },
+    });
+    // Regression guard: a warnings-only change must not fall through as unchanged, and must
+    // not falsely populate unrelated change fields.
+    expect(result.metrics[0].changes?.description).toBeUndefined();
+    expect(result.metrics[0].changes?.deprecated).toBeUndefined();
+  });
+
+  it("detects a warnings-only change (removed: from a populated warnings object to undefined)", () => {
+    const from = makeComponent({
+      telemetry: {
+        metrics: {
+          "my.metric": makeMetric({
+            warnings: { if_configured: "Configuring this is deprecated." },
+          }),
+        },
+      },
+    });
+    const to = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ warnings: undefined }) } },
+    });
+    const result = compareCollectorTelemetry(from, to);
+    expect(result.metrics[0].changes?.warnings).toEqual({
+      before: { if_configured: "Configuring this is deprecated." },
+      after: undefined,
+    });
+  });
+
+  it("detects a warnings-only change when a single warning field differs (if_enabled)", () => {
+    const from = makeComponent({
+      telemetry: {
+        metrics: {
+          "my.metric": makeMetric({
+            warnings: { if_enabled: "old warning", if_configured: "same" },
+          }),
+        },
+      },
+    });
+    const to = makeComponent({
+      telemetry: {
+        metrics: {
+          "my.metric": makeMetric({
+            warnings: { if_enabled: "new warning", if_configured: "same" },
+          }),
+        },
+      },
+    });
+    const result = compareCollectorTelemetry(from, to);
+    expect(result.metrics[0].changes?.warnings).toEqual({
+      before: { if_enabled: "old warning", if_configured: "same" },
+      after: { if_enabled: "new warning", if_configured: "same" },
+    });
+  });
+
+  it("detects a warnings-only change when only if_enabled_not_set differs", () => {
+    const from = makeComponent({
+      telemetry: {
+        metrics: { "my.metric": makeMetric({ warnings: { if_enabled_not_set: "before" } }) },
+      },
+    });
+    const to = makeComponent({
+      telemetry: {
+        metrics: { "my.metric": makeMetric({ warnings: { if_enabled_not_set: "after" } }) },
+      },
+    });
+    const result = compareCollectorTelemetry(from, to);
+    expect(result.metrics[0].changes?.warnings).toEqual({
+      before: { if_enabled_not_set: "before" },
+      after: { if_enabled_not_set: "after" },
+    });
+  });
+
+  it("reports a metric with byte-identical warnings as unchanged", () => {
+    const warnings = { if_enabled: "same", if_configured: "same too" };
+    const from = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ warnings }) } },
+    });
+    const to = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ warnings: { ...warnings } }) } },
+    });
+    const result = compareCollectorTelemetry(from, to);
+    expect(result.metrics[0].status).toBe("unchanged");
+  });
+
   it("detects an added attribute, resolving definitions from each version's own attributes map", () => {
     const from = makeComponent({
       telemetry: { metrics: { "my.metric": makeMetric({ attributes: [] }) } },

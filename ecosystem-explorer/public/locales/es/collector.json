@@ -328,6 +328,7 @@
       "changed": "Modificado"
     },
     "unit": "Unidad",
+    "unitWas": "(antes: <unit>{{unit}}</unit>)",
     "descriptionChanged": "Descripción modificada",
     "extendedDocumentationChanged": "Documentación extendida modificada",
     "enabledChanged": "Estado habilitado modificado",
@@ -345,6 +346,12 @@
     "deprecatedValue": {
       "deprecated": "Obsoleto",
       "notDeprecated": "No obsoleto"
+    },
+    "warningsChanged": "Advertencias modificadas",
+    "warningsFields": {
+      "ifEnabled": "Si está habilitado",
+      "ifEnabledNotSet": "Si «habilitado» no está definido",
+      "ifConfigured": "Si está configurado"
     },
     "prefixChanged": "Prefijo modificado",
     "metricTypeChanged": "Tipo de métrica modificado",

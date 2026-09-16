@@ -163,6 +163,25 @@
             },
             "propertyOrder": ["note", "since"]
           },
+          "warnings": {
+            "description": "Warnings shown to users under specific configuration conditions.",
+            "type": "object",
+            "properties": {
+              "if_enabled": {
+                "description": "Shown if the metric is enabled in user config (e.g. a deprecated default metric).",
+                "type": "string"
+              },
+              "if_enabled_not_set": {
+                "description": "Shown if `enabled` is not set explicitly in user config.",
+                "type": "string"
+              },
+              "if_configured": {
+                "description": "Shown if the metric is configured by the user in any way (e.g. a deprecated optional metric).",
+                "type": "string"
+              }
+            },
+            "propertyOrder": ["if_enabled", "if_enabled_not_set", "if_configured"]
+          },
           "sum": {
             "description": "Sum metric type descriptor. Present when the metric is a sum.",
             "allOf": [
@@ -272,6 +291,7 @@
           "optional",
           "prefix",
           "deprecated",
+          "warnings",
           "sum",
           "gauge",
           "histogram",
@@ -446,6 +466,25 @@
                 },
                 "propertyOrder": ["note", "since"]
               },
+              "warnings": {
+                "description": "Warnings shown to users under specific configuration conditions.",
+                "type": "object",
+                "properties": {
+                  "if_enabled": {
+                    "description": "Shown if the metric is enabled in user config (e.g. a deprecated default metric).",
+                    "type": "string"
+                  },
+                  "if_enabled_not_set": {
+                    "description": "Shown if `enabled` is not set explicitly in user config.",
+                    "type": "string"
+                  },
+                  "if_configured": {
+                    "description": "Shown if the metric is configured by the user in any way (e.g. a deprecated optional metric).",
+                    "type": "string"
+                  }
+                },
+                "propertyOrder": ["if_enabled", "if_enabled_not_set", "if_configured"]
+              },
               "sum": {
                 "description": "Sum metric type descriptor. Present when the metric is a sum.",
                 "allOf": [
@@ -555,6 +594,7 @@
               "optional",
               "prefix",
               "deprecated",
+              "warnings",
               "sum",
               "gauge",
               "histogram",
