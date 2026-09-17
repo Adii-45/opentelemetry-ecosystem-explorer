@@ -241,6 +241,86 @@ describe("MetricDiffCard", () => {
     expect(screen.getByText("new if_configured")).toBeInTheDocument();
   });
 
+  it("renders a warning key not modeled in CollectorMetricWarnings, with a readable fallback label and its before/after values", () => {
+    // Regression guard: telemetry-diff.ts's warningsEqual() compares the union of keys
+    // actually present, so a future upstream warning field must still be visible here, not
+    // just collapsed into an unhelpful "Warnings changed" with no row.
+    const diff: CollectorMetricDiff = {
+      status: "changed",
+      name: "my.metric",
+      metric: makeMetric(),
+      changes: {
+        warnings: {
+          before: { if_enabled: "same" } as never,
+          after: {
+            if_enabled: "same",
+            if_future_condition: "a warning field not yet modeled in the frontend",
+          } as never,
+        },
+        attributes: { added: [], removed: [], changed: [] },
+      },
+    };
+    render(<MetricDiffCard diff={diff} />);
+    expect(screen.getByText("Warnings changed")).toBeInTheDocument();
+    // Readable fallback label derived from the raw key, not the raw snake_case key itself.
+    expect(screen.getByText("If future condition:")).toBeInTheDocument();
+    expect(screen.getByText("a warning field not yet modeled in the frontend")).toBeInTheDocument();
+    // The unchanged known field must not render a row.
+    expect(screen.queryByText("If enabled:")).not.toBeInTheDocument();
+  });
+
+  it("renders an added unmodeled warning key with a '—' placeholder for the missing before value", () => {
+    const diff: CollectorMetricDiff = {
+      status: "changed",
+      name: "my.metric",
+      metric: makeMetric(),
+      changes: {
+        warnings: {
+          before: undefined,
+          after: { some_future_warning_key: "newly added warning" } as never,
+        },
+        attributes: { added: [], removed: [], changed: [] },
+      },
+    };
+    render(<MetricDiffCard diff={diff} />);
+    expect(screen.getByText("Some future warning key:")).toBeInTheDocument();
+    expect(screen.getByText("newly added warning")).toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  it("renders a removed unmodeled warning key with a '—' placeholder for the missing after value", () => {
+    const diff: CollectorMetricDiff = {
+      status: "changed",
+      name: "my.metric",
+      metric: makeMetric(),
+      changes: {
+        warnings: {
+          before: { some_future_warning_key: "going away" } as never,
+          after: undefined,
+        },
+        attributes: { added: [], removed: [], changed: [] },
+      },
+    };
+    render(<MetricDiffCard diff={diff} />);
+    expect(screen.getByText("Some future warning key:")).toBeInTheDocument();
+    expect(screen.getByText("going away")).toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  it("does not render the warnings section at all when there is no warnings change", () => {
+    const diff: CollectorMetricDiff = {
+      status: "changed",
+      name: "my.metric",
+      metric: makeMetric({ description: "after" }),
+      changes: {
+        description: { before: "before", after: "after" },
+        attributes: { added: [], removed: [], changed: [] },
+      },
+    };
+    render(<MetricDiffCard diff={diff} />);
+    expect(screen.queryByText("Warnings changed")).not.toBeInTheDocument();
+  });
+
   it("renders the unit change through i18n interpolation, not hardcoded English", () => {
     const diff: CollectorMetricDiff = {
       status: "changed",

@@ -598,6 +598,104 @@ describe("compareCollectorTelemetry", () => {
     ]);
   });
 
+  it("still resolves attributes from component.attributes alone when resource_attributes is absent", () => {
+    // component.attributes-only behavior must be unaffected by the resource_attributes merge.
+    const from = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ attributes: ["outcome"] }) } },
+      attributes: { outcome: { description: "Result", type: "string" } },
+    });
+    const to = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ attributes: ["outcome"] }) } },
+      attributes: { outcome: { description: "Result", type: "string" } },
+    });
+    const result = compareCollectorTelemetry(from, to);
+    expect(result.metrics[0].status).toBe("unchanged");
+  });
+
+  it("resolves a key defined only in resource_attributes, instead of treating it as removed (Copilot finding #1)", () => {
+    // Regression guard: the current view (collector-telemetry-tab.tsx) resolves
+    // `attributes?.[key] ?? resourceAttributes?.[key]`, so the diff must do the same -- a key
+    // that only exists in resource_attributes must not be reported as added/removed.
+    const from = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ attributes: ["region"] }) } },
+      attributes: {},
+      resource_attributes: { region: { description: "Cloud region", type: "string" } },
+    });
+    const to = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ attributes: ["region"] }) } },
+      attributes: {},
+      resource_attributes: { region: { description: "Cloud region", type: "string" } },
+    });
+    const result = compareCollectorTelemetry(from, to);
+    expect(result.metrics[0].status).toBe("unchanged");
+  });
+
+  it("detects a resource_attributes-only key being added between versions", () => {
+    const from = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ attributes: [] }) } },
+      resource_attributes: {},
+    });
+    const to = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ attributes: ["region"] }) } },
+      resource_attributes: { region: { description: "Cloud region", type: "string" } },
+    });
+    const result = compareCollectorTelemetry(from, to);
+    expect(result.metrics[0].changes?.attributes.added).toEqual([
+      { key: "region", definition: { description: "Cloud region", type: "string" } },
+    ]);
+  });
+
+  it("detects a resource_attributes-only key being removed between versions", () => {
+    const from = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ attributes: ["region"] }) } },
+      resource_attributes: { region: { description: "Cloud region", type: "string" } },
+    });
+    const to = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ attributes: [] }) } },
+      resource_attributes: {},
+    });
+    const result = compareCollectorTelemetry(from, to);
+    expect(result.metrics[0].changes?.attributes.removed).toEqual([
+      { key: "region", definition: { description: "Cloud region", type: "string" } },
+    ]);
+  });
+
+  it("prefers component.attributes over resource_attributes for the same key, matching the Current View", () => {
+    const from = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ attributes: ["outcome"] }) } },
+      attributes: { outcome: { description: "From component.attributes", type: "string" } },
+      resource_attributes: { outcome: { description: "From resource_attributes", type: "int" } },
+    });
+    const to = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ attributes: ["outcome"] }) } },
+      attributes: { outcome: { description: "From component.attributes", type: "string" } },
+      resource_attributes: { outcome: { description: "From resource_attributes", type: "int" } },
+    });
+    const result = compareCollectorTelemetry(from, to);
+    // Unchanged (not merely non-throwing) proves attributes -- not resource_attributes -- won
+    // on both sides; if resource_attributes had won, both sides would still resolve to the same
+    // (wrong) definition, so this alone wouldn't prove precedence. The next assertion does.
+    expect(result.metrics[0].status).toBe("unchanged");
+
+    // Now change only the component.attributes side of one version: if attributes truly takes
+    // precedence, this must be detected as a changed attribute.
+    const toChanged = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ attributes: ["outcome"] }) } },
+      attributes: {
+        outcome: { description: "From component.attributes (updated)", type: "string" },
+      },
+      resource_attributes: { outcome: { description: "From resource_attributes", type: "int" } },
+    });
+    const changedResult = compareCollectorTelemetry(from, toChanged);
+    expect(changedResult.metrics[0].changes?.attributes.changed).toEqual([
+      {
+        key: "outcome",
+        before: { description: "From component.attributes", type: "string" },
+        after: { description: "From component.attributes (updated)", type: "string" },
+      },
+    ]);
+  });
+
   it("handles a metric with attributes: undefined the same as attributes: [] without throwing or reporting spurious changes", () => {
     const from = makeComponent({
       telemetry: { metrics: { "my.metric": makeMetric({ attributes: undefined }) } },

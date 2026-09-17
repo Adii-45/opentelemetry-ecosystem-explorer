@@ -16,11 +16,29 @@
 
 import { Trans, useTranslation } from "react-i18next";
 import { GlowBadge } from "@/components/ui/glow-badge";
-import type { CollectorMetricDiff } from "@/types/collector";
+import type { CollectorMetricDiff, CollectorMetricWarnings } from "@/types/collector";
 import { AttributeDiffList } from "./attribute-diff-list";
 
 interface MetricDiffCardProps {
   diff: CollectorMetricDiff;
+}
+
+/** Translation label keys for the warning fields currently modeled in CollectorMetricWarnings. */
+const KNOWN_WARNING_LABEL_KEYS: Record<keyof CollectorMetricWarnings, string> = {
+  if_enabled: "ifEnabled",
+  if_enabled_not_set: "ifEnabledNotSet",
+  if_configured: "ifConfigured",
+};
+
+/**
+ * Readable fallback label for a warning key the frontend type doesn't model yet (e.g. one
+ * introduced upstream after this file was last updated), so it renders as "Some new key"
+ * rather than being silently dropped.
+ */
+function formatUnknownWarningKey(key: string): string {
+  const [first, ...rest] = key.split("_").filter(Boolean);
+  if (!first) return key;
+  return [first.charAt(0).toUpperCase() + first.slice(1), ...rest].join(" ");
 }
 
 export function MetricDiffCard({ diff }: MetricDiffCardProps) {
@@ -194,30 +212,42 @@ export function MetricDiffCard({ diff }: MetricDiffCardProps) {
               {t("diffCard.warningsChanged")}
             </span>
             <div className="space-y-2">
-              {(
-                [
-                  ["if_enabled", "ifEnabled"],
-                  ["if_enabled_not_set", "ifEnabledNotSet"],
-                  ["if_configured", "ifConfigured"],
-                ] as const
-              ).map(([field, labelKey]) => {
-                const before = changes.warnings?.before?.[field];
-                const after = changes.warnings?.after?.[field];
-                if (before === after) return null;
-                return (
-                  <div key={field} className="space-y-1">
-                    <span className="text-muted-foreground text-xs">
-                      {t(`diffCard.warningsFields.${labelKey}`)}:
-                    </span>
-                    <div className="border-border/30 space-y-1 rounded-lg border bg-black/[0.02] p-3 dark:bg-white/[0.03]">
-                      <p className="text-sm text-red-700 line-through opacity-60 dark:text-red-400">
-                        {before ?? "—"}
-                      </p>
-                      <p className="text-sm text-green-700 dark:text-green-400">{after ?? "—"}</p>
+              {(() => {
+                // Render every key actually present in the diff, not just the three fields
+                // this frontend currently models -- telemetry-diff.ts's warningsEqual()
+                // compares the full union of keys, so an upstream warning field this type
+                // doesn't declare yet must still be visible here, not just "Warnings changed".
+                const before = (changes.warnings?.before ?? {}) as Record<
+                  string,
+                  string | undefined
+                >;
+                const after = (changes.warnings?.after ?? {}) as Record<string, string | undefined>;
+                const fields = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
+                return fields.map((field) => {
+                  const beforeValue = before[field];
+                  const afterValue = after[field];
+                  if (beforeValue === afterValue) return null;
+                  const labelKey = (KNOWN_WARNING_LABEL_KEYS as Record<string, string | undefined>)[
+                    field
+                  ];
+                  const label = labelKey
+                    ? t(`diffCard.warningsFields.${labelKey}`)
+                    : formatUnknownWarningKey(field);
+                  return (
+                    <div key={field} className="space-y-1">
+                      <span className="text-muted-foreground text-xs">{label}:</span>
+                      <div className="border-border/30 space-y-1 rounded-lg border bg-black/[0.02] p-3 dark:bg-white/[0.03]">
+                        <p className="text-sm text-red-700 line-through opacity-60 dark:text-red-400">
+                          {beforeValue ?? "—"}
+                        </p>
+                        <p className="text-sm text-green-700 dark:text-green-400">
+                          {afterValue ?? "—"}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                });
+              })()}
             </div>
           </div>
         )}

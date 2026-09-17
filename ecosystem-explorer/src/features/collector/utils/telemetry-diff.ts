@@ -39,6 +39,20 @@ function attributesEqual(a?: CollectorAttribute, b?: CollectorAttribute): boolea
   );
 }
 
+/**
+ * Merges a version's component-level attribute maps the same way the current view resolves
+ * them (collector-telemetry-tab.tsx: `attributes?.[key] ?? resourceAttributes?.[key]`), so a
+ * key defined only in `resource_attributes` isn't treated as missing/removed during comparison.
+ * `attributes` takes precedence over `resource_attributes` for the same key. Never mutates
+ * either input map.
+ */
+function mergeAttributeMaps(
+  attributes: Record<string, CollectorAttribute> | undefined,
+  resourceAttributes: Record<string, CollectorAttribute> | undefined
+): Record<string, CollectorAttribute> {
+  return { ...resourceAttributes, ...attributes };
+}
+
 /** Resolves a metric's attribute key references against a version's component-level attributes map. */
 function resolveAttributes(
   metric: CollectorMetric,
@@ -265,8 +279,14 @@ export function compareCollectorTelemetry(
 ): CollectorTelemetryDiffResult {
   const fromMetrics = fromComponent?.telemetry?.metrics ?? {};
   const toMetrics = toComponent?.telemetry?.metrics ?? {};
-  const fromAttributes = fromComponent?.attributes;
-  const toAttributes = toComponent?.attributes;
+  const fromAttributes = mergeAttributeMaps(
+    fromComponent?.attributes,
+    fromComponent?.resource_attributes
+  );
+  const toAttributes = mergeAttributeMaps(
+    toComponent?.attributes,
+    toComponent?.resource_attributes
+  );
 
   const allNames = new Set([...Object.keys(fromMetrics), ...Object.keys(toMetrics)]);
   const diffs: CollectorMetricDiff[] = [];
