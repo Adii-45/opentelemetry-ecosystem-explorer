@@ -16,6 +16,8 @@
 """Inventory manager for Python instrumentation registry storage."""
 
 import logging
+import os
+import tempfile
 from pathlib import Path
 
 import yaml
@@ -56,6 +58,15 @@ class InventoryManager:
         """
         Save a package version to the registry.
 
+        Writes atomically: serializes to a temporary file in the same directory as
+        the final path, then replaces the final path only once that write has fully
+        succeeded. This guarantees version_exists() can never observe a partial or
+        corrupted file at the final path — either the previous complete file is still
+        there (nothing written yet), or the new complete file is (write succeeded).
+        On any failure, the temporary file is removed and the exception propagates,
+        leaving nothing behind at the final path for a later run to misinterpret as
+        "already tracked".
+
         Args:
             package_name: Package directory name
             version: Version string
@@ -64,14 +75,21 @@ class InventoryManager:
         path = self._version_path(package_name, version)
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        with path.open("w") as f:
-            yaml.dump(
-                data,
-                f,
-                default_flow_style=False,
-                sort_keys=True,
-                allow_unicode=True,
-            )
+        fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+        tmp_path = Path(tmp_name)
+        try:
+            with os.fdopen(fd, "w") as f:
+                yaml.dump(
+                    data,
+                    f,
+                    default_flow_style=False,
+                    sort_keys=True,
+                    allow_unicode=True,
+                )
+            os.replace(tmp_path, path)  # atomic on POSIX and Windows; same filesystem
+        except Exception:
+            tmp_path.unlink(missing_ok=True)
+            raise
 
         logger.debug("Saved %s v%s to %s", package_name, version, path)
 

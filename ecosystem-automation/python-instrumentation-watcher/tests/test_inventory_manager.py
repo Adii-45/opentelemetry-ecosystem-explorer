@@ -15,6 +15,9 @@
 
 """Tests for InventoryManager."""
 
+from unittest.mock import patch
+
+import pytest
 import yaml
 from python_instrumentation_watcher.inventory_manager import InventoryManager
 
@@ -54,3 +57,80 @@ def test_version_path_format(tmp_path):
 
     expected = tmp_path / "opentelemetry-instrumentation-requests" / "v0.48b0.yaml"
     assert expected.exists()
+
+
+def test_save_does_not_leave_a_temp_file_behind_on_success(tmp_path):
+    manager = InventoryManager(registry_dir=str(tmp_path))
+
+    manager.save("opentelemetry-instrumentation-flask", "0.48b0", {"name": "test"})
+
+    package_dir = tmp_path / "opentelemetry-instrumentation-flask"
+    # Exactly the final file — no leftover temp file from the atomic-write step.
+    assert [p.name for p in package_dir.iterdir()] == ["v0.48b0.yaml"]
+
+
+def test_save_failure_during_serialization_does_not_leave_a_partial_final_file(tmp_path):
+    manager = InventoryManager(registry_dir=str(tmp_path))
+    final_path = tmp_path / "opentelemetry-instrumentation-flask" / "v0.48b0.yaml"
+
+    with (
+        patch("python_instrumentation_watcher.inventory_manager.yaml.dump", side_effect=yaml.YAMLError("boom")),
+        pytest.raises(yaml.YAMLError),
+    ):
+        manager.save("opentelemetry-instrumentation-flask", "0.48b0", {"name": "test"})
+
+    assert not final_path.exists()
+    assert not manager.version_exists("opentelemetry-instrumentation-flask", "0.48b0")
+
+
+def test_save_failure_cleans_up_its_temp_file(tmp_path):
+    manager = InventoryManager(registry_dir=str(tmp_path))
+
+    with (
+        patch("python_instrumentation_watcher.inventory_manager.yaml.dump", side_effect=yaml.YAMLError("boom")),
+        pytest.raises(yaml.YAMLError),
+    ):
+        manager.save("opentelemetry-instrumentation-flask", "0.48b0", {"name": "test"})
+
+    package_dir = tmp_path / "opentelemetry-instrumentation-flask"
+    # The directory itself is created (mkdir happens before the write attempt), but no
+    # stray temp file should remain inside it after cleanup.
+    assert list(package_dir.iterdir()) == []
+
+
+def test_save_retries_successfully_after_a_failed_write(tmp_path):
+    manager = InventoryManager(registry_dir=str(tmp_path))
+    data = {"name": "opentelemetry-instrumentation-flask", "version": "0.48b0"}
+
+    with (
+        patch("python_instrumentation_watcher.inventory_manager.yaml.dump", side_effect=yaml.YAMLError("boom")),
+        pytest.raises(yaml.YAMLError),
+    ):
+        manager.save("opentelemetry-instrumentation-flask", "0.48b0", data)
+
+    # A prior failed write must not be mistaken for an already-tracked version.
+    assert not manager.version_exists("opentelemetry-instrumentation-flask", "0.48b0")
+
+    manager.save("opentelemetry-instrumentation-flask", "0.48b0", data)
+
+    assert manager.version_exists("opentelemetry-instrumentation-flask", "0.48b0")
+    path = tmp_path / "opentelemetry-instrumentation-flask" / "v0.48b0.yaml"
+    assert yaml.safe_load(path.read_text())["name"] == "opentelemetry-instrumentation-flask"
+
+
+def test_save_replaces_final_path_from_a_temp_file_in_the_same_directory(tmp_path):
+    manager = InventoryManager(registry_dir=str(tmp_path))
+    final_path = tmp_path / "opentelemetry-instrumentation-flask" / "v0.48b0.yaml"
+
+    with patch("python_instrumentation_watcher.inventory_manager.os.replace") as mock_replace:
+        manager.save("opentelemetry-instrumentation-flask", "0.48b0", {"name": "test"})
+
+    mock_replace.assert_called_once()
+    tmp_arg, dest_arg = mock_replace.call_args[0]
+    # Same directory as the final path, so the promotion can be atomic (same filesystem).
+    assert tmp_arg.parent == final_path.parent
+    assert dest_arg == final_path
+    # os.replace was mocked out, so the final path was never actually created —
+    # confirms the final path only becomes visible via that one replace call, not
+    # by writing to it directly beforehand.
+    assert not final_path.exists()

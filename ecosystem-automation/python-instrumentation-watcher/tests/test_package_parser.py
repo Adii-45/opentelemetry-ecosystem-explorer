@@ -688,8 +688,9 @@ def test_parse_package_py_annotation_only_statement_without_value_is_ignored(rep
     parser = PackageParser(package_path=pkg_dir, repo_path=repo)
     parser.parse()
 
-    # No value was ever assigned, so this is indistinguishable from "not defined".
+    # No value was ever assigned, so this is genuinely absent — not merely unresolved.
     assert parser.has_metadata_disagreement() is False
+    assert parser.has_unresolved_metadata() is False
 
 
 def test_parse_package_py_unrecognized_call_is_not_evaluated(repo, pkg_dir):
@@ -701,8 +702,174 @@ def test_parse_package_py_unrecognized_call_is_not_evaluated(repo, pkg_dir):
     parser.parse()
 
     # some_function_call() is neither a literal nor a recognized empty-container call, so
-    # the field is left unset (as if not defined) rather than raising or being invoked.
+    # it can't be statically resolved without executing code — it is never invoked, and
+    # the field is marked unresolved rather than silently treated as absent.
     assert parser.has_metadata_disagreement() is False
+    assert parser.has_unresolved_metadata() is True
+
+
+def test_has_unresolved_metadata_false_when_package_py_absent(repo, pkg_dir):
+    write_pyproject(pkg_dir, BASIC_PYPROJECT)
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_unresolved_metadata() is False
+
+
+def test_has_unresolved_metadata_false_when_instruments_are_literal(repo, pkg_dir):
+    write_pyproject(pkg_dir, BASIC_PYPROJECT)
+    write_package_py(pkg_dir, '_instruments = ("flask >= 1.0",)\n')
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_unresolved_metadata() is False
+
+
+def test_has_unresolved_metadata_true_for_tuple_starred_expression(repo, pkg_dir):
+    """Copilot's first cited unsupported form: `(*_SOME_TUPLE,)`.
+
+    ast.literal_eval can't evaluate a Starred node — this must not silently become
+    "field absent".
+    """
+    write_pyproject(pkg_dir, BASIC_PYPROJECT)
+    write_package_py(
+        pkg_dir,
+        """\
+        _SOME_TUPLE = ("flask >= 1.0",)
+        _instruments = (*_SOME_TUPLE,)
+        """,
+    )
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_unresolved_metadata() is True
+
+
+def test_has_unresolved_metadata_true_for_named_constant_reference(repo, pkg_dir):
+    """Copilot's second cited unsupported form: a bare name/attribute reference.
+
+    Even though `_SOME_CONSTANT` happens to be a literal-valued module constant in this
+    fixture, the parser must not attempt to resolve names from module state — doing so
+    safely in general would require tracking arbitrary definition order, imports, and
+    reassignment, which this static, execution-free parser deliberately does not
+    attempt. An unprovably-safe name reference is marked unresolved, not guessed at.
+    """
+    write_pyproject(pkg_dir, BASIC_PYPROJECT)
+    write_package_py(
+        pkg_dir,
+        """\
+        _SOME_CONSTANT = ("flask >= 1.0",)
+        _instruments = _SOME_CONSTANT
+        """,
+    )
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_unresolved_metadata() is True
+
+
+def test_has_unresolved_metadata_true_for_attribute_reference(repo, pkg_dir):
+    write_pyproject(pkg_dir, BASIC_PYPROJECT)
+    write_package_py(pkg_dir, "_instruments = some_module.SOME_CONSTANT\n")
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_unresolved_metadata() is True
+
+
+def test_unresolved_instruments_does_not_produce_a_false_disagreement(repo, pkg_dir):
+    """The core regression: an unresolved package.py field must not be compared as if
+    it were an intentional empty list, which would fabricate a disagreement against
+    pyproject.toml's non-empty `instruments` entry.
+    """
+    write_pyproject(pkg_dir, BASIC_PYPROJECT)  # declares instruments = ["flask >= 1.0"]
+    write_package_py(pkg_dir, "_instruments = (*_SOME_TUPLE,)\n")
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_metadata_disagreement() is False
+    assert parser.has_unresolved_metadata() is True
+
+
+def test_unresolved_is_distinguishable_from_absent(repo, pkg_dir):
+    """Prove the three states don't collapse: absent and unresolved both leave
+    has_metadata_disagreement() at False, but only one of them is reported by
+    has_unresolved_metadata() — "we can't tell" must remain observable and must not
+    disappear into "there's nothing to tell".
+    """
+    write_pyproject(pkg_dir, BASIC_PYPROJECT)
+
+    absent_parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    absent_parser.parse()  # no package.py at all
+
+    unresolved_pkg = pkg_dir.parent / "opentelemetry-instrumentation-flask-unresolved"
+    unresolved_pkg.mkdir()
+    write_pyproject(unresolved_pkg, BASIC_PYPROJECT)
+    write_package_py(
+        unresolved_pkg,
+        "_instruments = _SOME_CONSTANT\n",
+        rel_path="src/opentelemetry/instrumentation/flask/package.py",
+    )
+    unresolved_parser = PackageParser(package_path=unresolved_pkg, repo_path=repo)
+    unresolved_parser.parse()
+
+    assert absent_parser.has_metadata_disagreement() is False
+    assert unresolved_parser.has_metadata_disagreement() is False
+    # Same has_metadata_disagreement() result, but distinguishable via the diagnostic:
+    assert absent_parser.has_unresolved_metadata() is False
+    assert unresolved_parser.has_unresolved_metadata() is True
+
+
+def test_unresolved_instruments_any_does_not_mask_a_real_disagreement_in_instruments(repo, pkg_dir):
+    """An unresolved `_instruments_any` must not prevent a genuine, independently
+    detectable disagreement in `_instruments` from being reported — the two keys are
+    still checked independently.
+    """
+    write_pyproject(
+        pkg_dir,
+        """\
+        [project]
+        name = "opentelemetry-instrumentation-botocore"
+        version = "1.0.0"
+
+        [project.optional-dependencies]
+        instruments = ["botocore >= 1.0"]
+        instruments-any = ["boto3 >= 1.0"]
+        """,
+    )
+    write_package_py(
+        pkg_dir,
+        """\
+        _instruments = ("botocore >= 2.0",)
+        _instruments_any = _SOME_CONSTANT
+        """,
+    )
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_unresolved_metadata() is True
+    assert parser.has_metadata_disagreement() is True  # from the resolved `_instruments` mismatch
+
+
+def test_known_differing_value_still_produces_a_disagreement(repo, pkg_dir):
+    """Regression guard: the unresolved-state handling must not weaken detection of a
+    genuine, fully-resolved disagreement.
+    """
+    write_pyproject(pkg_dir, BASIC_PYPROJECT)  # instruments = ["flask >= 1.0"]
+    write_package_py(pkg_dir, '_instruments = ("flask >= 9.0",)\n')
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_metadata_disagreement() is True
+    assert parser.has_unresolved_metadata() is False
 
 
 def test_parse_uses_first_package_py_when_multiple_found(repo, pkg_dir):

@@ -68,6 +68,27 @@ _EMPTY_CONTAINER_CALLS: dict[str, type] = {
 }
 
 
+class _Unresolved:
+    """Sentinel: a package.py instrument field *is* assigned a value, but that value
+    could not be determined via safe static analysis (e.g. a starred expression, a
+    name/attribute reference, a comprehension — anything `_safe_eval_container` can't
+    resolve without executing code). Distinct from `None`, which means the field was
+    never assigned at all. Never guessed at and never executed — see
+    PackageParser.has_metadata_disagreement() and has_unresolved_metadata() for how
+    the two states are kept apart.
+    """
+
+    def __repr__(self) -> str:
+        return "UNRESOLVED"
+
+
+_UNRESOLVED = _Unresolved()
+
+# A package.py instrument field is one of: not assigned at all (None), assigned but
+# not statically resolvable (_UNRESOLVED), or assigned and resolved (list[str]).
+_InstrumentValue = list[str] | None | _Unresolved
+
+
 def _split_requirement(spec: str) -> tuple[str, str] | None:
     """Split a requirement string into (library, raw version range).
 
@@ -158,8 +179,9 @@ class PackageParser:
         self.package_path = package_path
         self.repo_path = repo_path
         # Both keyed by pyproject.toml's source_key ("instruments" / "instruments-any"),
-        # populated by parse(). See has_metadata_disagreement().
-        self._package_py_instruments: dict[str, list[str] | None] = dict.fromkeys(INSTRUMENTS_SOURCE_KEYS)
+        # populated by parse(). See has_metadata_disagreement() and
+        # has_unresolved_metadata().
+        self._package_py_instruments: dict[str, _InstrumentValue] = dict.fromkeys(INSTRUMENTS_SOURCE_KEYS)
         self._pyproject_instruments_by_key: dict[str, list[tuple[str, str]]] = {}
 
     def parse(self) -> dict | None:
@@ -235,17 +257,26 @@ class PackageParser:
         were an intentional empty list. Returns False if package.py defines neither
         field — there's nothing to disagree with.
 
+        A field that *is* defined but couldn't be statically resolved (see
+        has_unresolved_metadata()) is excluded from the comparison the same way an
+        absent field is: an unresolved value carries no information to compare, and
+        treating it as an intentional empty list would fabricate a disagreement that
+        may not be real. It is never silently treated as agreeing or disagreeing —
+        callers that need to know whether that happened should also check
+        has_unresolved_metadata().
+
         Returns:
             True if, for some key, the two sources describe different sets of
             instrumented libraries/ranges.
         """
-        if all(specs is None for specs in self._package_py_instruments.values()):
+        if all(specs is None or specs is _UNRESOLVED for specs in self._package_py_instruments.values()):
             return False
 
         for source_key, specs in self._package_py_instruments.items():
-            if specs is None:
-                # package.py doesn't define this field at all — nothing to compare it
-                # against, so it must not be silently folded into another key's set.
+            if specs is None or specs is _UNRESOLVED:
+                # Absent, or defined-but-unresolvable — either way there's nothing
+                # reliable to compare, so it must not be silently folded into another
+                # key's set nor treated as a confirmed empty list.
                 continue
 
             package_py_set = set()
@@ -263,6 +294,28 @@ class PackageParser:
                 return True
 
         return False
+
+    def has_unresolved_metadata(self) -> bool:
+        """
+        Check whether package.py defines an `_instruments`/`_instruments_any` field
+        whose value could not be statically resolved — e.g. a starred expression
+        (`(*_SOME_TUPLE,)`), a bare name or attribute reference (`_SOME_CONSTANT`,
+        `mod.CONST`), a comprehension, or any other non-literal expression that
+        `_safe_eval_container` can't determine without executing code. Must be
+        called after parse().
+
+        This is the "we can't tell" signal has_metadata_disagreement() deliberately
+        excludes from its True/False result (see its docstring): an unresolved field
+        is neither a confirmed match nor a confirmed disagreement, so it must not
+        silently collapse into "field absent" either. Callers that need to flag a
+        package for manual review because its package.py couldn't be fully
+        cross-checked should check this separately from has_metadata_disagreement().
+
+        Returns:
+            True if any package.py instrument field was assigned a value that
+            couldn't be statically resolved.
+        """
+        return any(specs is _UNRESOLVED for specs in self._package_py_instruments.values())
 
     def _parse_pyproject_toml(self) -> dict | None:
         """Read and parse pyproject.toml."""
@@ -396,8 +449,10 @@ class PackageParser:
 
         Returns:
             Dict with 'instruments' (dict mapping each of INSTRUMENTS_SOURCE_KEYS to
-            list[str] | None), 'semantic_convention_status' (str | None), and
-            'supports_metrics' (bool | None). All None if no package.py was found.
+            a _InstrumentValue — list[str] if resolved, None if not assigned at all,
+            or _UNRESOLVED if assigned but not statically resolvable),
+            'semantic_convention_status' (str | None), and 'supports_metrics'
+            (bool | None). All None if no package.py was found.
         """
         candidates = sorted(
             p for p in self.package_path.rglob("package.py") if "tests" not in p.parts and "test" not in p.parts
@@ -442,7 +497,19 @@ class PackageParser:
                 try:
                     value = _safe_eval_container(value_node)
                 except (ValueError, SyntaxError):
-                    logger.warning("Could not evaluate %s in %s", name, path)
+                    # The field *is* assigned, but the static evaluator can't determine
+                    # its value (starred expressions, name/attribute references,
+                    # comprehensions, etc.) without executing code, which this parser
+                    # never does. That's a distinct state from "not assigned at all" —
+                    # collapsing it into the default `None` would let
+                    # has_metadata_disagreement() silently treat an unresolvable
+                    # value as an intentional empty list. Mark it unresolved instead.
+                    logger.warning(
+                        "Could not statically resolve %s in %s; treating as unresolved rather than absent",
+                        name,
+                        path,
+                    )
+                    result["instruments"][source_key] = _UNRESOLVED
                     continue
                 if isinstance(value, (list, tuple)):
                     result["instruments"][source_key] = list(value)
