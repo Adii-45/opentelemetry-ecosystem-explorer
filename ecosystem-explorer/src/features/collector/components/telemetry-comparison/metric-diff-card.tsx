@@ -45,6 +45,19 @@ export function MetricDiffCard({ diff }: MetricDiffCardProps) {
   const { t } = useTranslation("collector");
   const { status, name, metric, changes } = diff;
 
+  /**
+   * `deprecated` is compared on both `note` and `since`, so both have to render: a re-dated
+   * deprecation whose note is unchanged would otherwise show identical before/after text, and
+   * the version the deprecation landed in is the more actionable half for a reader.
+   */
+  const formatDeprecated = (value?: { note?: string; since?: string }) => {
+    if (!value) return t("diffCard.deprecatedValue.notDeprecated");
+    const note = value.note ?? t("diffCard.deprecatedValue.deprecated");
+    return value.since
+      ? t("diffCard.deprecatedValue.withSince", { note, since: value.since })
+      : note;
+  };
+
   const statusVariant = status === "added" ? "success" : status === "removed" ? "error" : "warning";
   const statusLabel =
     status === "added"
@@ -190,17 +203,13 @@ export function MetricDiffCard({ diff }: MetricDiffCardProps) {
             <span className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
               {t("diffCard.deprecatedChanged")}
             </span>
-            <div className="flex items-center gap-2 text-sm">
+            <div className="flex flex-wrap items-center gap-2 text-sm">
               <span className="text-red-700 line-through opacity-60 dark:text-red-400">
-                {changes.deprecated.before
-                  ? (changes.deprecated.before.note ?? t("diffCard.deprecatedValue.deprecated"))
-                  : t("diffCard.deprecatedValue.notDeprecated")}
+                {formatDeprecated(changes.deprecated.before)}
               </span>
               <span className="text-muted-foreground">→</span>
               <span className="text-green-700 dark:text-green-400">
-                {changes.deprecated.after
-                  ? (changes.deprecated.after.note ?? t("diffCard.deprecatedValue.deprecated"))
-                  : t("diffCard.deprecatedValue.notDeprecated")}
+                {formatDeprecated(changes.deprecated.after)}
               </span>
             </div>
           </div>

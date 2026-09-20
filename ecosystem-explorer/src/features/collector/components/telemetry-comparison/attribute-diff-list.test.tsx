@@ -103,26 +103,35 @@ describe("AttributeDiffList", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("uses the DESIGN.md striped-table convention (bg-white/5 header, bg-muted/40 odd rows), matching the Java Agent table", () => {
-    // Regression guard: this table previously used bg-muted/30 (header) and bg-muted/20 (odd
-    // rows), an invented shade that didn't match DESIGN.md or attribute-diff-table.tsx (java-agent).
+  it("alternates row striping continuously across the added, removed, and changed groups", () => {
+    // The three groups render as separate .map() passes but share one stripe counter
+    // (`index + added.length`, then `index + added.length + removed.length`), so dropping
+    // either offset would restart the stripe mid-table. Group sizes are deliberately 1/2/1:
+    // both running offsets are then odd, so dropping either one flips a row's shade. An even
+    // first group would make `index + added.length` congruent to `index` and hide the bug.
+    // Rows are compared against each other, not a named shade, so a restyle doesn't break this.
     const { container } = render(
       <AttributeDiffList
         changes={changes({
-          added: [
-            { key: "attr-a", definition: { description: "d", type: "string" } },
+          added: [{ key: "attr-a", definition: { description: "d", type: "string" } }],
+          removed: [
             { key: "attr-b", definition: { description: "d", type: "string" } },
+            { key: "attr-c", definition: { description: "d", type: "string" } },
+          ],
+          changed: [
+            {
+              key: "attr-d",
+              before: { description: "d", type: "string" },
+              after: { description: "d", type: "int" },
+            },
           ],
         })}
       />
     );
-    const headerRow = container.querySelector("thead tr");
-    expect(headerRow).toHaveClass("bg-white/5");
-    expect(headerRow).not.toHaveClass("bg-muted/30");
-
-    const bodyRows = container.querySelectorAll("tbody tr");
-    expect(bodyRows[0]).not.toHaveClass("bg-muted/40");
-    expect(bodyRows[1]).toHaveClass("bg-muted/40");
-    expect(bodyRows[1]).not.toHaveClass("bg-muted/20");
+    const rows = Array.from(container.querySelectorAll("tbody tr"));
+    expect(rows).toHaveLength(4);
+    expect(rows[0].className).toBe(rows[2].className);
+    expect(rows[1].className).toBe(rows[3].className);
+    expect(rows[0].className).not.toBe(rows[1].className);
   });
 });

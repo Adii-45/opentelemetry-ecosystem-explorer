@@ -349,7 +349,8 @@
     "deprecatedChanged": "Estado de obsolescencia modificado",
     "deprecatedValue": {
       "deprecated": "Obsoleto",
-      "notDeprecated": "No obsoleto"
+      "notDeprecated": "No obsoleto",
+      "withSince": "{{note}} (desde {{since}})"
     },
     "warningsChanged": "Advertencias modificadas",
     "warningsFields": {

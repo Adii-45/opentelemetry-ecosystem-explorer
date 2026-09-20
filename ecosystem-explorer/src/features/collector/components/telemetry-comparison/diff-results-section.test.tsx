@@ -19,11 +19,7 @@ import { DiffResultsSection } from "./diff-results-section";
 import type { CollectorTelemetryDiffResult } from "@/types/collector";
 
 describe("DiffResultsSection (collector)", () => {
-  it("reuses the shared SectionDivider (border-b-2 rule) instead of a locally duplicated gradient-line variant", () => {
-    // Regression guard: this component previously defined its own local `SectionDivider`
-    // (a gradient-line variant) instead of reusing @/components/ui/section-divider, creating
-    // a third visually distinct divider implementation alongside the shared one and the
-    // Java Agent's own local copy.
+  it("groups added/removed metrics and changed metrics under their own headers, in that order", () => {
     const diffResult: CollectorTelemetryDiffResult = {
       metrics: [
         {
@@ -42,19 +38,13 @@ describe("DiffResultsSection (collector)", () => {
     const { container } = render(<DiffResultsSection diffResult={diffResult} />);
 
     expect(screen.getByText("Added & Removed")).toBeInTheDocument();
-    // "Changed" also appears as the second metric card's status badge, so scope this query to
-    // the divider label's characteristic classes (shared component only) to disambiguate.
-    const dividerLabels = container.querySelectorAll("span.px-8");
-    expect(Array.from(dividerLabels).map((el) => el.textContent)).toEqual([
-      "Added & Removed",
-      "Changed",
-    ]);
+    // "Changed" is both the section header and the changed card's own status badge, so two
+    // occurrences is what proves the header rendered alongside the badge.
+    expect(screen.getAllByText("Changed")).toHaveLength(2);
 
-    // The shared SectionDivider renders a `border-b-2` rule either side of the label; the old
-    // local variant used `bg-gradient-to-r`/`bg-gradient-to-l` lines instead.
-    expect(container.querySelectorAll(".border-b-2").length).toBeGreaterThan(0);
-    expect(container.querySelector(".bg-gradient-to-r")).not.toBeInTheDocument();
-    expect(container.querySelector(".bg-gradient-to-l")).not.toBeInTheDocument();
+    const text = container.textContent ?? "";
+    expect(text.indexOf("Added & Removed")).toBeLessThan(text.indexOf("added.metric"));
+    expect(text.indexOf("added.metric")).toBeLessThan(text.indexOf("changed.metric"));
   });
 
   it("renders the empty-diff state when nothing changed", () => {

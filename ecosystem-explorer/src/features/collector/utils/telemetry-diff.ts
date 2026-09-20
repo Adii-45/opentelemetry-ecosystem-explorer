@@ -164,28 +164,41 @@ function compareMetricDescriptor(
   return Object.keys(descriptor).length > 0 ? { descriptor } : {};
 }
 
+/**
+ * Compares two flat records over the union of keys present on either side, rather than a fixed
+ * list of known field names, so a field neither side happens to omit -- including one added
+ * upstream after this type was last updated -- is never silently skipped.
+ */
+function fieldsEqual(a: object, b: object): boolean {
+  const aFields = a as Record<string, unknown>;
+  const bFields = b as Record<string, unknown>;
+  const keys = new Set([...Object.keys(aFields), ...Object.keys(bFields)]);
+  for (const key of keys) {
+    if (aFields[key] !== bFields[key]) return false;
+  }
+  return true;
+}
+
+/**
+ * `deprecated` is presence-significant: an empty block still means "deprecated, no details
+ * given", which the card renders differently from an absent one, so a missing block and an
+ * empty one are a real change.
+ */
 function deprecatedEqual(
   a?: { note?: string; since?: string },
   b?: { note?: string; since?: string }
 ): boolean {
   if (!a || !b) return a === b;
-  return a.note === b.note && a.since === b.since;
+  return fieldsEqual(a, b);
 }
 
 /**
- * Compares the union of keys actually present on either side, rather than a fixed list of
- * known field names, so a warning field neither side happens to omit -- including one added
- * upstream after this type was last updated -- is never silently skipped.
+ * Unlike `deprecated`, a missing `warnings` block and an empty one both mean "no warnings" and
+ * render identically, so reporting them as different would mark the metric `changed` and then
+ * render a "Warnings changed" heading with no rows beneath it.
  */
 function warningsEqual(a?: CollectorMetricWarnings, b?: CollectorMetricWarnings): boolean {
-  if (!a || !b) return a === b;
-  const keys = new Set([...Object.keys(a), ...Object.keys(b)]) as Set<
-    keyof CollectorMetricWarnings
-  >;
-  for (const key of keys) {
-    if (a[key] !== b[key]) return false;
-  }
-  return true;
+  return fieldsEqual(a ?? {}, b ?? {});
 }
 
 /** Compares one metric present in both versions, keyed by `name`. */

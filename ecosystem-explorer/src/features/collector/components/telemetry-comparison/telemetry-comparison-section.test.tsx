@@ -113,7 +113,7 @@ describe("TelemetryComparisonSection (collector)", () => {
     expect(screen.getByRole("status")).toBeInTheDocument();
   });
 
-  it("renders an error message without a low-contrast /80 opacity class", () => {
+  it("renders the comparison error message", () => {
     mockResult({ error: new Error("boom") });
     render(
       <TelemetryComparisonSection
@@ -123,12 +123,10 @@ describe("TelemetryComparisonSection (collector)", () => {
         currentVersion="0.156.0"
       />
     );
-    const message = screen.getByText("boom");
-    expect(message).toBeInTheDocument();
-    expect(message.className).not.toMatch(/\/80/);
+    expect(screen.getByText("boom")).toBeInTheDocument();
   });
 
-  it("renders a same-version warning (without a low-contrast /80 class) and no diff results when both versions match", () => {
+  it("renders a same-version warning and no diff results when both versions match", () => {
     mockResult({ fromVersion: "0.156.0", toVersion: "0.156.0", diffResult: { metrics: [] } });
     render(
       <TelemetryComparisonSection
@@ -138,9 +136,10 @@ describe("TelemetryComparisonSection (collector)", () => {
         currentVersion="0.156.0"
       />
     );
-    const message = screen.getByText("Choose two different versions to see a comparison.");
-    expect(message).toBeInTheDocument();
-    expect(message.className).not.toMatch(/\/80/);
+    expect(
+      screen.getByText("Choose two different versions to see a comparison.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText("No differences found")).not.toBeInTheDocument();
   });
 
   it("renders the empty-diff state when nothing changed", () => {

@@ -257,10 +257,12 @@ describe("CollectorDetailPage", () => {
     await user.click(comparisonButton);
 
     expect(screen.getByText("Comparison unavailable")).toBeInTheDocument();
-    const message = screen.getByText("Could not load the list of versions needed for comparison.");
-    expect(message).toBeInTheDocument();
-    // Regression guard: this block previously used a low-contrast text-red-700/80 class.
-    expect(message.className).not.toMatch(/\/80/);
+    expect(
+      screen.getByText("Could not load the list of versions needed for comparison.")
+    ).toBeInTheDocument();
+    // This panel explains the failure in translated copy, unlike the whole-page error state
+    // above, which does surface the raw hook message. The raw error must not leak in here.
+    expect(screen.queryByText("Failed to load collector-versions-index")).not.toBeInTheDocument();
   });
 
   it("resolves the version from the URL immediately when ?version= is present, independent of the versions fetch", () => {

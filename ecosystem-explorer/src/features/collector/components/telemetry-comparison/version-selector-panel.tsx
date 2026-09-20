@@ -57,7 +57,7 @@ export function VersionSelectorPanel({
                 id="collector-from-version-select"
                 value={fromVersion}
                 onChange={(e) => onFromVersionChange(e.target.value)}
-                className="border-border/60 bg-background/80 text-foreground hover:border-primary/40 focus:border-primary/50 focus:ring-primary/20 w-full cursor-pointer appearance-none rounded-lg border-2 px-4 py-2.5 text-sm font-medium [color-scheme:dark] backdrop-blur-sm transition-all duration-200 focus:ring-2 focus:outline-none"
+                className="border-border/60 bg-background/80 text-foreground hover:border-primary/40 focus:border-primary/50 focus:ring-primary/20 w-full cursor-pointer appearance-none rounded-lg border-2 px-4 py-2.5 text-sm font-medium backdrop-blur-sm transition-all duration-200 focus:ring-2 focus:outline-none"
               >
                 {versions.map((v) => (
                   <option key={v.version} value={v.version}>
@@ -84,7 +84,7 @@ export function VersionSelectorPanel({
                 id="collector-to-version-select"
                 value={toVersion}
                 onChange={(e) => onToVersionChange(e.target.value)}
-                className="border-border/60 bg-background/80 text-foreground hover:border-primary/40 focus:border-primary/50 focus:ring-primary/20 w-full cursor-pointer appearance-none rounded-lg border-2 px-4 py-2.5 text-sm font-medium [color-scheme:dark] backdrop-blur-sm transition-all duration-200 focus:ring-2 focus:outline-none"
+                className="border-border/60 bg-background/80 text-foreground hover:border-primary/40 focus:border-primary/50 focus:ring-primary/20 w-full cursor-pointer appearance-none rounded-lg border-2 px-4 py-2.5 text-sm font-medium backdrop-blur-sm transition-all duration-200 focus:ring-2 focus:outline-none"
               >
                 {versions.map((v) => (
                   <option key={v.version} value={v.version}>

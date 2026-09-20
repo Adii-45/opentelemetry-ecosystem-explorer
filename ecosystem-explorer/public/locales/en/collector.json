@@ -349,7 +349,8 @@
     "deprecatedChanged": "Deprecation changed",
     "deprecatedValue": {
       "deprecated": "Deprecated",
-      "notDeprecated": "Not deprecated"
+      "notDeprecated": "Not deprecated",
+      "withSince": "{{note}} (since {{since}})"
     },
     "warningsChanged": "Warnings changed",
     "warningsFields": {

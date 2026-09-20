@@ -169,7 +169,7 @@ describe("MetricDiffCard", () => {
     render(<MetricDiffCard diff={diff} />);
     expect(screen.getByText("Deprecation changed")).toBeInTheDocument();
     expect(screen.getByText("Not deprecated")).toBeInTheDocument();
-    expect(screen.getByText("Use my.other.metric instead")).toBeInTheDocument();
+    expect(screen.getByText("Use my.other.metric instead (since 0.150.0)")).toBeInTheDocument();
   });
 
   it("renders a deprecated-only change (note updated) without a fallback placeholder", () => {
@@ -186,9 +186,45 @@ describe("MetricDiffCard", () => {
       },
     };
     render(<MetricDiffCard diff={diff} />);
-    expect(screen.getByText("old note")).toBeInTheDocument();
-    expect(screen.getByText("new note")).toBeInTheDocument();
+    expect(screen.getByText("old note (since 0.140.0)")).toBeInTheDocument();
+    expect(screen.getByText("new note (since 0.150.0)")).toBeInTheDocument();
     expect(screen.queryByText("Deprecated")).not.toBeInTheDocument();
+  });
+
+  it("renders a since-only deprecation change as two distinct values, not identical before/after", () => {
+    // Regression guard: the card rendered `deprecated.note` alone while the diff compared both
+    // note and since, so re-dating a deprecation produced a "Changed" card whose before and
+    // after read identically.
+    const diff: CollectorMetricDiff = {
+      status: "changed",
+      name: "my.metric",
+      metric: makeMetric({ deprecated: { note: "same note", since: "0.150.0" } }),
+      changes: {
+        deprecated: {
+          before: { note: "same note", since: "0.140.0" },
+          after: { note: "same note", since: "0.150.0" },
+        },
+        attributes: { added: [], removed: [], changed: [] },
+      },
+    };
+    render(<MetricDiffCard diff={diff} />);
+    expect(screen.getByText("same note (since 0.140.0)")).toBeInTheDocument();
+    expect(screen.getByText("same note (since 0.150.0)")).toBeInTheDocument();
+  });
+
+  it("falls back to the 'Deprecated' label when a deprecation carries a since but no note", () => {
+    const diff: CollectorMetricDiff = {
+      status: "changed",
+      name: "my.metric",
+      metric: makeMetric({ deprecated: { since: "0.150.0" } }),
+      changes: {
+        deprecated: { before: undefined, after: { since: "0.150.0" } },
+        attributes: { added: [], removed: [], changed: [] },
+      },
+    };
+    render(<MetricDiffCard diff={diff} />);
+    expect(screen.getByText("Not deprecated")).toBeInTheDocument();
+    expect(screen.getByText("Deprecated (since 0.150.0)")).toBeInTheDocument();
   });
 
   it("renders a warnings-only change (single field), not a blank Changed card", () => {

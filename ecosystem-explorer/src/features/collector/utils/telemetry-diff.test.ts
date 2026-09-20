@@ -348,6 +348,62 @@ describe("compareCollectorTelemetry", () => {
     });
   });
 
+  it("detects a since-only deprecation change, where the note is unchanged", () => {
+    const from = makeComponent({
+      telemetry: {
+        metrics: { "my.metric": makeMetric({ deprecated: { note: "same", since: "0.140.0" } }) },
+      },
+    });
+    const to = makeComponent({
+      telemetry: {
+        metrics: { "my.metric": makeMetric({ deprecated: { note: "same", since: "0.150.0" } }) },
+      },
+    });
+    const result = compareCollectorTelemetry(from, to);
+    expect(result.metrics[0].status).toBe("changed");
+    expect(result.metrics[0].changes?.deprecated).toEqual({
+      before: { note: "same", since: "0.140.0" },
+      after: { note: "same", since: "0.150.0" },
+    });
+  });
+
+  it("reports an absent deprecated block vs an empty one as changed, since an empty block still means deprecated", () => {
+    // Unlike `warnings`, `deprecated` is presence-significant: the card renders an empty block
+    // as "Deprecated" and an absent one as "Not deprecated", so these must not collapse.
+    const from = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ deprecated: undefined }) } },
+    });
+    const to = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ deprecated: {} }) } },
+    });
+    const result = compareCollectorTelemetry(from, to);
+    expect(result.metrics[0].status).toBe("changed");
+    expect(result.metrics[0].changes?.deprecated).toEqual({ before: undefined, after: {} });
+  });
+
+  it("detects a change in a deprecated subfield beyond note/since, so a future upstream field is never silently dropped", () => {
+    // Regression guard: deprecatedEqual compared a hardcoded note/since pair, so any subfield
+    // added upstream would fall through to `status: "unchanged"`.
+    const fromDeprecated = { note: "same", since: "0.150.0" };
+    const toDeprecated = {
+      note: "same",
+      since: "0.150.0",
+      replacement: "my.other.metric",
+    } as unknown as CollectorMetric["deprecated"];
+    const from = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ deprecated: fromDeprecated }) } },
+    });
+    const to = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ deprecated: toDeprecated }) } },
+    });
+    const result = compareCollectorTelemetry(from, to);
+    expect(result.metrics[0].status).toBe("changed");
+    expect(result.metrics[0].changes?.deprecated).toEqual({
+      before: fromDeprecated,
+      after: toDeprecated,
+    });
+  });
+
   it("detects a warnings-only change (added: from undefined to a populated warnings object)", () => {
     const from = makeComponent({
       telemetry: { metrics: { "my.metric": makeMetric({ warnings: undefined }) } },
@@ -449,12 +505,27 @@ describe("compareCollectorTelemetry", () => {
     expect(result.metrics[0].status).toBe("unchanged");
   });
 
-  it("reports a metric with both sides' warnings undefined/empty as unchanged", () => {
+  it("reports a metric with both sides' warnings undefined as unchanged", () => {
     const from = makeComponent({
       telemetry: { metrics: { "my.metric": makeMetric({ warnings: undefined }) } },
     });
     const to = makeComponent({
       telemetry: { metrics: { "my.metric": makeMetric({ warnings: undefined }) } },
+    });
+    const result = compareCollectorTelemetry(from, to);
+    expect(result.metrics[0].status).toBe("unchanged");
+    expect(result.metrics[0].changes?.warnings).toBeUndefined();
+  });
+
+  it("treats an absent warnings block and an empty one as equal, so the card never renders an empty Warnings section", () => {
+    // Regression guard: warningsEqual used to return false here (`!a` short-circuited to
+    // `a === b`), marking the metric changed while every per-field comparison in the card's
+    // render loop compared equal -- a "Warnings changed" heading above an empty container.
+    const from = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ warnings: undefined }) } },
+    });
+    const to = makeComponent({
+      telemetry: { metrics: { "my.metric": makeMetric({ warnings: {} }) } },
     });
     const result = compareCollectorTelemetry(from, to);
     expect(result.metrics[0].status).toBe("unchanged");
