@@ -17,6 +17,7 @@
 
 import logging
 import os
+import sys
 
 from .instrumentation_sync import InstrumentationSync
 from .inventory_manager import InventoryManager
@@ -36,7 +37,13 @@ def configure_logging() -> None:
 
 
 def main() -> None:
-    """Main entry point for the Python instrumentation watcher."""
+    """Main entry point for the Python instrumentation watcher.
+
+    Exits with a non-zero status if any package genuinely failed to process
+    (summary["failed"]), so future CI/nightly automation can detect a bad run.
+    Skipped, unresolved-metadata, and disagreeing packages are expected, non-fatal
+    outcomes of a normal run and do not affect the exit status.
+    """
     configure_logging()
 
     base_dir = os.environ.get("PYTHON_CONTRIB_REPOS_DIR", "tmp_repos")
@@ -56,3 +63,7 @@ def main() -> None:
     summary = sync.sync()
 
     logger.info("Sync complete: %s", summary)
+
+    if summary.get("failed"):
+        logger.error("%d package(s) failed to process", len(summary["failed"]))
+        sys.exit(1)

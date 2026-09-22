@@ -63,16 +63,22 @@ class InstrumentationSync:
         - Otherwise parse and write the metadata
         - Separately, report (but do not block on) a pyproject.toml/package.py
           `instruments` disagreement, per schema design §7 open decision #2
+        - Separately, report (but do not block on) package.py metadata that could
+          not be statically resolved (PackageParser.has_unresolved_metadata()) —
+          real upstream package.py cross-check data includes cases the static
+          evaluator can't determine, and those must stay visible rather than
+          silently vanishing into "no disagreement"
 
         Returns:
-            Summary dict with counts of new, skipped, failed, and
-            metadata-disagreeing packages
+            Summary dict with counts of new, skipped, failed,
+            metadata-disagreeing, and unresolved-metadata packages
         """
         summary: dict[str, Any] = {
             "new": [],
             "skipped": [],
             "failed": [],
             "disagreements": [],
+            "unresolved": [],
         }
 
         packages = self.scanner.discover_packages()
@@ -109,6 +115,14 @@ class InstrumentationSync:
                 )
                 summary["disagreements"].append(package_id)
 
+            if parser.has_unresolved_metadata():
+                logger.warning(
+                    "package.py instruments could not be statically resolved for %s; "
+                    "disagreement cross-check may be incomplete",
+                    package_id,
+                )
+                summary["unresolved"].append(package_id)
+
             if self.inventory_manager.version_exists(name, version):
                 logger.debug("Already tracked: %s", package_id)
                 summary["skipped"].append(package_id)
@@ -119,11 +133,12 @@ class InstrumentationSync:
             summary["new"].append(package_id)
 
         logger.info(
-            "Sync complete — new: %d, skipped: %d, failed: %d, disagreements: %d",
+            "Sync complete — new: %d, skipped: %d, failed: %d, disagreements: %d, unresolved: %d",
             len(summary["new"]),
             len(summary["skipped"]),
             len(summary["failed"]),
             len(summary["disagreements"]),
+            len(summary["unresolved"]),
         )
 
         return summary

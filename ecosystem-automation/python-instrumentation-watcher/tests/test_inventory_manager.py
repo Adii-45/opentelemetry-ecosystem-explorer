@@ -74,7 +74,7 @@ def test_save_failure_during_serialization_does_not_leave_a_partial_final_file(t
     final_path = tmp_path / "opentelemetry-instrumentation-flask" / "v0.48b0.yaml"
 
     with (
-        patch("python_instrumentation_watcher.inventory_manager.yaml.dump", side_effect=yaml.YAMLError("boom")),
+        patch("python_instrumentation_watcher.inventory_manager.yaml.safe_dump", side_effect=yaml.YAMLError("boom")),
         pytest.raises(yaml.YAMLError),
     ):
         manager.save("opentelemetry-instrumentation-flask", "0.48b0", {"name": "test"})
@@ -87,7 +87,7 @@ def test_save_failure_cleans_up_its_temp_file(tmp_path):
     manager = InventoryManager(registry_dir=str(tmp_path))
 
     with (
-        patch("python_instrumentation_watcher.inventory_manager.yaml.dump", side_effect=yaml.YAMLError("boom")),
+        patch("python_instrumentation_watcher.inventory_manager.yaml.safe_dump", side_effect=yaml.YAMLError("boom")),
         pytest.raises(yaml.YAMLError),
     ):
         manager.save("opentelemetry-instrumentation-flask", "0.48b0", {"name": "test"})
@@ -103,7 +103,7 @@ def test_save_retries_successfully_after_a_failed_write(tmp_path):
     data = {"name": "opentelemetry-instrumentation-flask", "version": "0.48b0"}
 
     with (
-        patch("python_instrumentation_watcher.inventory_manager.yaml.dump", side_effect=yaml.YAMLError("boom")),
+        patch("python_instrumentation_watcher.inventory_manager.yaml.safe_dump", side_effect=yaml.YAMLError("boom")),
         pytest.raises(yaml.YAMLError),
     ):
         manager.save("opentelemetry-instrumentation-flask", "0.48b0", data)

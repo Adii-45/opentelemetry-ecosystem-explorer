@@ -404,6 +404,92 @@ def test_parse_package_py_skips_test_directories(repo, pkg_dir):
     assert result["semantic_convention_status"] is None
 
 
+def test_parse_package_py_still_excludes_a_tests_dir_nested_inside_the_package(repo, pkg_dir):
+    """The exclusion rule itself is unchanged by the relative_to() fix: a package.py
+    legitimately living under the package's own tests/ directory is still
+    excluded. Same fixture as test_parse_package_py_skips_test_directories, kept
+    as an explicit before/after pairing with the ancestor-directory tests below."""
+    write_pyproject(pkg_dir, BASIC_PYPROJECT)
+    write_package_py(pkg_dir, '_semconv_status = "should-not-be-used"\n', rel_path="tests/package.py")
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    result = parser.parse()
+
+    assert result["semantic_convention_status"] is None
+
+
+def test_parse_package_py_found_when_checkout_is_under_an_ancestor_named_tests(tmp_path):
+    """Regression: rglob() yields absolute paths, so an ancestor directory named
+    `test`/`tests` *outside* the package checkout (e.g. a CI workspace path like
+    `.../tests/opentelemetry-python-contrib/...`) must not cause every package.py
+    to be silently excluded. Only path segments *relative to the package itself*
+    should be checked.
+    """
+    repo = tmp_path / "tests" / "opentelemetry-python-contrib"
+    pkg_dir = repo / "instrumentation" / "opentelemetry-instrumentation-flask"
+    pkg_dir.mkdir(parents=True)
+    write_pyproject(pkg_dir, BASIC_PYPROJECT)
+    write_package_py(pkg_dir, '_semconv_status = "stable"\n')
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    result = parser.parse()
+
+    assert result["semantic_convention_status"] == "stable"
+
+
+def test_parse_package_py_found_when_checkout_is_under_an_ancestor_named_test(tmp_path):
+    repo = tmp_path / "test" / "opentelemetry-python-contrib"
+    pkg_dir = repo / "instrumentation" / "opentelemetry-instrumentation-flask"
+    pkg_dir.mkdir(parents=True)
+    write_pyproject(pkg_dir, BASIC_PYPROJECT)
+    write_package_py(pkg_dir, '_semconv_status = "stable"\n')
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    result = parser.parse()
+
+    assert result["semantic_convention_status"] == "stable"
+
+
+def test_parse_package_py_excludes_a_tests_dir_even_when_checkout_is_under_an_ancestor_named_tests(tmp_path):
+    """Combines both cases: an ancestor named `tests` outside the package must be
+    ignored, while a `tests/` directory *inside* the package is still excluded."""
+    repo = tmp_path / "tests" / "opentelemetry-python-contrib"
+    pkg_dir = repo / "instrumentation" / "opentelemetry-instrumentation-flask"
+    pkg_dir.mkdir(parents=True)
+    write_pyproject(pkg_dir, BASIC_PYPROJECT)
+    write_package_py(pkg_dir, '_semconv_status = "should-not-be-used"\n', rel_path="tests/package.py")
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    result = parser.parse()
+
+    assert result["semantic_convention_status"] is None
+
+
+def test_parse_package_py_rejects_wrong_typed_semconv_status(repo, pkg_dir):
+    """Review fix: an ast.literal_eval() result must be type-checked before being
+    treated as the expected str/bool — a stray non-str value must not leak into
+    the registry's semantic_convention_status field."""
+    write_pyproject(pkg_dir, BASIC_PYPROJECT)
+    write_package_py(pkg_dir, "_semconv_status = 42\n")
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    result = parser.parse()
+
+    assert result["semantic_convention_status"] is None
+
+
+def test_parse_package_py_rejects_wrong_typed_supports_metrics(repo, pkg_dir):
+    """bool is a subclass of int in Python, so this also guards against a stray
+    int (e.g. `1`) being silently accepted as a bool."""
+    write_pyproject(pkg_dir, BASIC_PYPROJECT)
+    write_package_py(pkg_dir, "_supports_metrics = 1\n")
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    result = parser.parse()
+
+    assert result["supports_metrics"] is None
+
+
 def test_parse_package_py_ignores_non_literal_assignment(repo, pkg_dir):
     write_pyproject(pkg_dir, BASIC_PYPROJECT)
     write_package_py(
@@ -727,20 +813,16 @@ def test_has_unresolved_metadata_false_when_instruments_are_literal(repo, pkg_di
     assert parser.has_unresolved_metadata() is False
 
 
-def test_has_unresolved_metadata_true_for_tuple_starred_expression(repo, pkg_dir):
-    """Copilot's first cited unsupported form: `(*_SOME_TUPLE,)`.
-
-    ast.literal_eval can't evaluate a Starred node — this must not silently become
-    "field absent".
+def test_has_unresolved_metadata_true_for_tuple_starred_expression_of_an_undefined_name(repo, pkg_dir):
+    """A starred expression referencing a name that isn't itself defined anywhere in
+    the file must stay unresolved — this parser only follows same-file references
+    it can already prove resolve to a value (see
+    test_parse_package_py_resolves_starred_reference_to_a_same_file_constant for
+    the real upstream botocore/httpx shape, where the referenced name *is*
+    defined), never an out-of-file or otherwise-unprovable name.
     """
     write_pyproject(pkg_dir, BASIC_PYPROJECT)
-    write_package_py(
-        pkg_dir,
-        """\
-        _SOME_TUPLE = ("flask >= 1.0",)
-        _instruments = (*_SOME_TUPLE,)
-        """,
-    )
+    write_package_py(pkg_dir, "_instruments = (*_SOME_UNDEFINED_TUPLE,)\n")
 
     parser = PackageParser(package_path=pkg_dir, repo_path=repo)
     parser.parse()
@@ -748,23 +830,15 @@ def test_has_unresolved_metadata_true_for_tuple_starred_expression(repo, pkg_dir
     assert parser.has_unresolved_metadata() is True
 
 
-def test_has_unresolved_metadata_true_for_named_constant_reference(repo, pkg_dir):
-    """Copilot's second cited unsupported form: a bare name/attribute reference.
-
-    Even though `_SOME_CONSTANT` happens to be a literal-valued module constant in this
-    fixture, the parser must not attempt to resolve names from module state — doing so
-    safely in general would require tracking arbitrary definition order, imports, and
-    reassignment, which this static, execution-free parser deliberately does not
-    attempt. An unprovably-safe name reference is marked unresolved, not guessed at.
+def test_has_unresolved_metadata_true_for_reference_to_an_undefined_name(repo, pkg_dir):
+    """A bare name reference to something not defined anywhere in the file — e.g. an
+    import, or simply a typo/omission — must stay unresolved rather than guessed
+    at. See test_parse_package_py_resolves_direct_reference_to_a_same_file_constant
+    for the real upstream psycopg2/cassandra shape, where the referenced name *is*
+    defined earlier in the same file.
     """
     write_pyproject(pkg_dir, BASIC_PYPROJECT)
-    write_package_py(
-        pkg_dir,
-        """\
-        _SOME_CONSTANT = ("flask >= 1.0",)
-        _instruments = _SOME_CONSTANT
-        """,
-    )
+    write_package_py(pkg_dir, "_instruments = _SOME_UNDEFINED_CONSTANT\n")
 
     parser = PackageParser(package_path=pkg_dir, repo_path=repo)
     parser.parse()
@@ -773,6 +847,8 @@ def test_has_unresolved_metadata_true_for_named_constant_reference(repo, pkg_dir
 
 
 def test_has_unresolved_metadata_true_for_attribute_reference(repo, pkg_dir):
+    """An attribute access (e.g. into an imported module) is never resolved — only
+    a bare same-file name is ever looked up, never module/import state."""
     write_pyproject(pkg_dir, BASIC_PYPROJECT)
     write_package_py(pkg_dir, "_instruments = some_module.SOME_CONSTANT\n")
 
@@ -780,6 +856,154 @@ def test_has_unresolved_metadata_true_for_attribute_reference(repo, pkg_dir):
     parser.parse()
 
     assert parser.has_unresolved_metadata() is True
+
+
+def test_parse_package_py_resolves_starred_reference_to_a_same_file_constant(repo, pkg_dir):
+    """Real upstream botocore/httpx shape: `_instruments_any = (*_instruments_botocore,
+    *_instruments_aiobotocore)`, where both referenced names are tuples assigned
+    earlier in the same file. This is safe static resolution, not code execution:
+    only a name already proven to resolve (via a preceding literal assignment in
+    this same file) is ever substituted in.
+    """
+    write_pyproject(
+        pkg_dir,
+        """\
+        [project]
+        name = "opentelemetry-instrumentation-botocore"
+        version = "1.0.0"
+
+        [project.optional-dependencies]
+        instruments-any = ["botocore ~= 1.0", "aiobotocore ~= 1.0"]
+        """,
+    )
+    write_package_py(
+        pkg_dir,
+        """\
+        _instruments_botocore = ("botocore ~= 1.0",)
+        _instruments_aiobotocore = ("aiobotocore ~= 1.0",)
+        _instruments_any = (*_instruments_botocore, *_instruments_aiobotocore)
+        """,
+    )
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_unresolved_metadata() is False
+    assert parser.has_metadata_disagreement() is False
+
+
+def test_parse_package_py_resolves_direct_reference_to_a_same_file_constant(repo, pkg_dir):
+    """Real upstream psycopg2/cassandra shape: `_instruments_any =
+    _psycopg2_instruments`, a bare reference to a tuple assigned earlier in the
+    same file."""
+    write_pyproject(
+        pkg_dir,
+        """\
+        [project]
+        name = "opentelemetry-instrumentation-psycopg2"
+        version = "1.0.0"
+
+        [project.optional-dependencies]
+        instruments-any = ["psycopg2 >= 2.7.3.1"]
+        """,
+    )
+    write_package_py(
+        pkg_dir,
+        """\
+        _psycopg2_instruments = ("psycopg2 >= 2.7.3.1",)
+        _instruments_any = _psycopg2_instruments
+        """,
+    )
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_unresolved_metadata() is False
+    assert parser.has_metadata_disagreement() is False
+
+
+def test_parse_package_py_resolves_tuple_of_plain_name_references(repo, pkg_dir):
+    """A tuple whose (non-starred) elements are themselves bare references to
+    same-file string constants — the general "tuple containing references" shape,
+    distinct from the starred-unpack and single-reference shapes above."""
+    write_pyproject(
+        pkg_dir,
+        """\
+        [project]
+        name = "opentelemetry-instrumentation-cassandra"
+        version = "1.0.0"
+
+        [project.optional-dependencies]
+        instruments-any = ["cassandra-driver >= 3.25", "scylla-driver >= 3.25"]
+        """,
+    )
+    write_package_py(
+        pkg_dir,
+        """\
+        _cassandra_instruments = "cassandra-driver >= 3.25"
+        _scylla_instruments = "scylla-driver >= 3.25"
+        _instruments_any = (_cassandra_instruments, _scylla_instruments)
+        """,
+    )
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_unresolved_metadata() is False
+    assert parser.has_metadata_disagreement() is False
+
+
+def test_parse_package_py_still_reports_a_real_disagreement_after_reference_resolution(repo, pkg_dir):
+    """Resolving same-file references must not weaken genuine disagreement
+    detection: a resolved-but-wrong value is still a disagreement."""
+    write_pyproject(
+        pkg_dir,
+        """\
+        [project]
+        name = "opentelemetry-instrumentation-botocore"
+        version = "1.0.0"
+
+        [project.optional-dependencies]
+        instruments-any = ["botocore ~= 1.0"]
+        """,
+    )
+    write_package_py(
+        pkg_dir,
+        """\
+        _instruments_botocore = ("botocore ~= 2.0",)
+        _instruments_any = (*_instruments_botocore,)
+        """,
+    )
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_unresolved_metadata() is False
+    assert parser.has_metadata_disagreement() is True
+
+
+def test_parse_package_py_leaves_dynamic_instruments_any_unresolved(repo, pkg_dir):
+    """An unsupported/dynamic construct (here, a generator-expression call) must
+    remain unresolved rather than guessed at, even though it superficially
+    resembles the supported forms."""
+    write_pyproject(
+        pkg_dir,
+        """\
+        [project]
+        name = "opentelemetry-instrumentation-x"
+        version = "1.0.0"
+
+        [project.optional-dependencies]
+        instruments-any = ["x >= 1.0"]
+        """,
+    )
+    write_package_py(pkg_dir, '_instruments_any = tuple(x for x in ["x >= 1.0"])\n')
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_unresolved_metadata() is True
+    assert parser.has_metadata_disagreement() is False
 
 
 def test_unresolved_instruments_does_not_produce_a_false_disagreement(repo, pkg_dir):
@@ -870,6 +1094,152 @@ def test_known_differing_value_still_produces_a_disagreement(repo, pkg_dir):
 
     assert parser.has_metadata_disagreement() is True
     assert parser.has_unresolved_metadata() is False
+
+
+# --- Unparseable requirements must not make the two sources "agree by omission" --
+
+
+def test_cross_check_both_sides_parse_and_agree(repo, pkg_dir):
+    write_pyproject(pkg_dir, BASIC_PYPROJECT)  # instruments = ["flask >= 1.0"]
+    write_package_py(pkg_dir, '_instruments = ("flask >= 1.0",)\n')
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_metadata_disagreement() is False
+    assert parser.has_unresolved_metadata() is False
+
+
+def test_cross_check_both_sides_parse_and_disagree(repo, pkg_dir):
+    write_pyproject(pkg_dir, BASIC_PYPROJECT)  # instruments = ["flask >= 1.0"]
+    write_package_py(pkg_dir, '_instruments = ("django >= 1.0",)\n')
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_metadata_disagreement() is True
+    assert parser.has_unresolved_metadata() is False
+
+
+def test_cross_check_malformed_requirement_on_pyproject_side_is_not_silent_agreement(repo, pkg_dir):
+    """Regression for the omission bug: pyproject.toml has a malformed entry
+    alongside a valid one that matches package.py exactly. Dropping the malformed
+    entry from the comparison must not let the remaining, coincidentally-equal
+    subset be reported as a confirmed, trustworthy agreement.
+    """
+    write_pyproject(
+        pkg_dir,
+        """\
+        [project]
+        name = "opentelemetry-instrumentation-flask"
+        version = "1.0.0"
+
+        [project.optional-dependencies]
+        instruments = ["flask >= 1.0", ""]
+        """,
+    )
+    write_package_py(pkg_dir, '_instruments = ("flask >= 1.0",)\n')
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    # Not a confirmed disagreement (we don't know what the malformed entry meant)...
+    assert parser.has_metadata_disagreement() is False
+    # ...but must not be silently reported as a clean, trustworthy agreement either.
+    assert parser.has_unresolved_metadata() is True
+
+
+def test_cross_check_malformed_requirement_on_package_py_side_is_not_silent_agreement(repo, pkg_dir):
+    write_pyproject(pkg_dir, BASIC_PYPROJECT)  # instruments = ["flask >= 1.0"]
+    write_package_py(pkg_dir, '_instruments = ("flask >= 1.0", "")\n')
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_metadata_disagreement() is False
+    assert parser.has_unresolved_metadata() is True
+
+
+def test_cross_check_malformed_on_one_side_with_a_valid_entry_on_the_other(repo, pkg_dir):
+    """package.py has only the malformed entry (no parseable requirements at all)
+    while pyproject.toml has one valid entry — the parseable subsets trivially
+    "match" (both empty vs. one real entry would actually differ, but this
+    specific shape exercises the has-unparseable flag independent of set
+    equality vs inequality at the same time)."""
+    write_pyproject(
+        pkg_dir,
+        """\
+        [project]
+        name = "opentelemetry-instrumentation-flask"
+        version = "1.0.0"
+
+        [project.optional-dependencies]
+        instruments = [""]
+        """,
+    )
+    write_package_py(pkg_dir, '_instruments = ("",)\n')
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    # Both sides reduce to an empty parseable set (trivially "equal"), but both
+    # dropped an unparseable entry — must not be reported as a trustworthy match.
+    assert parser.has_metadata_disagreement() is False
+    assert parser.has_unresolved_metadata() is True
+
+
+def test_cross_check_malformed_requirement_does_not_mask_a_real_disagreement(repo, pkg_dir):
+    """A malformed entry alongside genuinely different valid requirements must
+    still surface as a confirmed disagreement — dropping the unparseable entry
+    must not suppress detection of a real, independently-confirmable mismatch."""
+    write_pyproject(
+        pkg_dir,
+        """\
+        [project]
+        name = "opentelemetry-instrumentation-flask"
+        version = "1.0.0"
+
+        [project.optional-dependencies]
+        instruments = ["flask >= 1.0", ""]
+        """,
+    )
+    write_package_py(pkg_dir, '_instruments = ("django >= 1.0",)\n')
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_metadata_disagreement() is True
+
+
+def test_cross_check_malformed_requirement_scoped_to_its_own_source_key(repo, pkg_dir):
+    """A malformed entry under instruments-any must not affect the independent
+    instruments comparison, which can still resolve to a clean, trustworthy
+    agreement."""
+    write_pyproject(
+        pkg_dir,
+        """\
+        [project]
+        name = "opentelemetry-instrumentation-botocore"
+        version = "1.0.0"
+
+        [project.optional-dependencies]
+        instruments = ["botocore >= 1.0"]
+        instruments-any = [""]
+        """,
+    )
+    write_package_py(
+        pkg_dir,
+        """\
+        _instruments = ("botocore >= 1.0",)
+        _instruments_any = ("",)
+        """,
+    )
+
+    parser = PackageParser(package_path=pkg_dir, repo_path=repo)
+    parser.parse()
+
+    assert parser.has_metadata_disagreement() is False
+    assert parser.has_unresolved_metadata() is True
 
 
 def test_parse_uses_first_package_py_when_multiple_found(repo, pkg_dir):

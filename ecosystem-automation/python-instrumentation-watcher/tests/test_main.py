@@ -32,7 +32,13 @@ def wiring():
         patch("python_instrumentation_watcher.main.InstrumentationSync") as sync,
     ):
         repo_manager.return_value.setup.return_value = Path("/repos/opentelemetry-python-contrib")
-        sync.return_value.sync.return_value = {"new": [], "skipped": [], "failed": [], "disagreements": []}
+        sync.return_value.sync.return_value = {
+            "new": [],
+            "skipped": [],
+            "failed": [],
+            "disagreements": [],
+            "unresolved": [],
+        }
         yield repo_manager, inventory_manager, sync
 
 
@@ -98,6 +104,7 @@ def test_main_logs_the_sync_summary(wiring, monkeypatch, caplog):
         "skipped": [],
         "failed": [],
         "disagreements": [],
+        "unresolved": [],
     }
     monkeypatch.delenv("PYTHON_CONTRIB_REPOS_DIR", raising=False)
 
@@ -105,6 +112,56 @@ def test_main_logs_the_sync_summary(wiring, monkeypatch, caplog):
         main()
 
     assert "opentelemetry-instrumentation-flask@0.48b0" in caplog.text
+
+
+def test_main_exits_nonzero_when_packages_failed(wiring, monkeypatch):
+    _, _, sync = wiring
+    sync.return_value.sync.return_value = {
+        "new": [],
+        "skipped": [],
+        "failed": ["opentelemetry-instrumentation-broken"],
+        "disagreements": [],
+        "unresolved": [],
+    }
+    monkeypatch.delenv("PYTHON_CONTRIB_REPOS_DIR", raising=False)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 1
+
+
+def test_main_logs_an_error_when_packages_failed(wiring, monkeypatch, caplog):
+    _, _, sync = wiring
+    sync.return_value.sync.return_value = {
+        "new": [],
+        "skipped": [],
+        "failed": ["opentelemetry-instrumentation-broken", "opentelemetry-instrumentation-also-broken"],
+        "disagreements": [],
+        "unresolved": [],
+    }
+    monkeypatch.delenv("PYTHON_CONTRIB_REPOS_DIR", raising=False)
+
+    with caplog.at_level(logging.ERROR, logger="python_instrumentation_watcher.main"), pytest.raises(SystemExit):
+        main()
+
+    assert "2 package(s) failed" in caplog.text
+
+
+def test_main_exits_successfully_when_only_non_fatal_conditions_present(wiring, monkeypatch):
+    """Skipped, disagreeing, and unresolved-metadata packages are expected, normal
+    outcomes of a run and must not be treated as a fatal failure."""
+    _, _, sync = wiring
+    sync.return_value.sync.return_value = {
+        "new": ["opentelemetry-instrumentation-a@1.0.0"],
+        "skipped": ["opentelemetry-instrumentation-b@2.0.0"],
+        "failed": [],
+        "disagreements": ["opentelemetry-instrumentation-a@1.0.0"],
+        "unresolved": ["opentelemetry-instrumentation-a@1.0.0"],
+    }
+    monkeypatch.delenv("PYTHON_CONTRIB_REPOS_DIR", raising=False)
+
+    assert main() is None
 
 
 def test_main_propagates_repository_setup_failure(wiring, monkeypatch):

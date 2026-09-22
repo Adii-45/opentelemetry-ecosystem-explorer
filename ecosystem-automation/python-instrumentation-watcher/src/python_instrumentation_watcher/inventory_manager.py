@@ -78,8 +78,8 @@ class InventoryManager:
         fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
         tmp_path = Path(tmp_name)
         try:
-            with os.fdopen(fd, "w") as f:
-                yaml.dump(
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                yaml.safe_dump(
                     data,
                     f,
                     default_flow_style=False,

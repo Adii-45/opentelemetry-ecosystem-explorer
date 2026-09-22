@@ -55,6 +55,14 @@ _PACKAGE_PY_SCALAR_FIELDS = {
     "_semconv_status": "semantic_convention_status",
 }
 
+# Expected Python type for each scalar registry field, so a literal_eval() result of
+# an unexpected shape (e.g. a stray int or nested structure) is never assigned
+# as-is — see _parse_package_py.
+_PACKAGE_PY_SCALAR_TYPES: dict[str, type] = {
+    "supports_metrics": bool,
+    "semantic_convention_status": str,
+}
+
 # Upstream package.py sometimes spells an empty instruments list as a zero-arg
 # constructor call (e.g. `_instruments: tuple[str, ...] = tuple()`) rather than a
 # literal `()`. `ast.literal_eval` can't evaluate a Call node, so this is handled
@@ -144,6 +152,57 @@ def _safe_eval_container(node: ast.AST) -> object:
         raise
 
 
+def _resolve_static_value(node: ast.AST, constants: dict[str, object]) -> object:
+    """Resolve an ast node to a Python value using only safe, static techniques.
+
+    Tried in order:
+      1. `_safe_eval_container` — a literal, or the recognized empty-container call
+         (`tuple()` etc.). Covers the common case with no reference resolution.
+      2. A bare reference to a same-file module-level constant that was itself
+         already resolved earlier in the file, e.g. `_instruments_any =
+         _psycopg2_instruments` — the real upstream psycopg2/cassandra shape.
+      3. A tuple/list/set literal whose elements may themselves be constant
+         references or starred constant-unpacks, e.g. `_instruments_any =
+         (*_instruments_botocore, *_instruments_aio)` — the real upstream
+         botocore/httpx shape.
+
+    `constants` holds every same-file top-level assignment resolved so far, built
+    incrementally in file order by the caller — matching real Python semantics,
+    where a module-level name must be assigned before a later statement can
+    reference it. A name is only ever accepted if it's already in `constants`;
+    this never imports, executes, or looks up anything from module/builtin state,
+    so an out-of-file reference (an import, an attribute access, a name that
+    isn't itself statically resolvable) is left unresolved rather than guessed at.
+
+    Raises ValueError or SyntaxError if none of the above apply.
+    """
+    try:
+        return _safe_eval_container(node)
+    except (ValueError, SyntaxError):
+        pass
+
+    if isinstance(node, ast.Name):
+        if node.id in constants:
+            return constants[node.id]
+        raise ValueError(f"unresolved name reference: {node.id}")
+
+    if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+        resolved: list[object] = []
+        for elt in node.elts:
+            if isinstance(elt, ast.Starred):
+                expanded = _resolve_static_value(elt.value, constants)
+                if not isinstance(expanded, (list, tuple, set)):
+                    raise ValueError(f"starred expression did not resolve to a sequence: {ast.dump(elt.value)}")
+                resolved.extend(expanded)
+            else:
+                resolved.append(_resolve_static_value(elt, constants))
+        if isinstance(node, ast.Set):
+            return set(resolved)
+        return tuple(resolved) if isinstance(node, ast.Tuple) else resolved
+
+    raise ValueError(f"unresolved expression: {ast.dump(node)}")
+
+
 def _iter_field_assignments(tree: ast.Module):
     """Yield (name, value_node) for each top-level `Assign`/`AnnAssign` in `tree`.
 
@@ -159,6 +218,21 @@ def _iter_field_assignments(tree: ast.Module):
                     yield target.id, node.value
         elif isinstance(node, ast.AnnAssign) and node.value is not None and isinstance(node.target, ast.Name):
             yield node.target.id, node.value
+
+
+def _is_under_excluded_test_dir(candidate: Path, package_path: Path) -> bool:
+    """True if `candidate`'s path *relative to* `package_path` passes through a
+    `test`/`tests` directory.
+
+    Checks `candidate.relative_to(package_path).parts` rather than
+    `candidate.parts` deliberately: `rglob` yields absolute paths, and an ancestor
+    directory named `test`/`tests` *outside* the package checkout (e.g. a CI
+    workspace path) would otherwise silently exclude every package.py found,
+    since `.parts` on an absolute path includes every ancestor segment, not just
+    the ones inside the package.
+    """
+    relative_parts = candidate.relative_to(package_path).parts
+    return "tests" in relative_parts or "test" in relative_parts
 
 
 class PackageParser:
@@ -183,6 +257,11 @@ class PackageParser:
         # has_unresolved_metadata().
         self._package_py_instruments: dict[str, _InstrumentValue] = dict.fromkeys(INSTRUMENTS_SOURCE_KEYS)
         self._pyproject_instruments_by_key: dict[str, list[tuple[str, str]]] = {}
+        # source_keys where pyproject.toml had a requirement string that couldn't
+        # be parsed and was dropped. Populated by _parse_instruments(); consumed by
+        # _evaluate_instruments_cross_check() so a dropped entry can't silently
+        # make the two sources "agree by omission" — see has_unresolved_metadata().
+        self._pyproject_unparseable_keys: set[str] = set()
 
     def parse(self) -> dict | None:
         """
@@ -257,20 +336,73 @@ class PackageParser:
         were an intentional empty list. Returns False if package.py defines neither
         field — there's nothing to disagree with.
 
-        A field that *is* defined but couldn't be statically resolved (see
-        has_unresolved_metadata()) is excluded from the comparison the same way an
-        absent field is: an unresolved value carries no information to compare, and
-        treating it as an intentional empty list would fabricate a disagreement that
-        may not be real. It is never silently treated as agreeing or disagreeing —
-        callers that need to know whether that happened should also check
-        has_unresolved_metadata().
+        A field that *is* defined but couldn't be statically resolved, or a key
+        where a requirement string on either side couldn't be parsed, is excluded
+        from a confident True result the same way an absent field is (see
+        _evaluate_instruments_cross_check) — it is never silently treated as
+        agreeing or disagreeing. Callers that need to know whether that happened
+        should also check has_unresolved_metadata().
 
         Returns:
-            True if, for some key, the two sources describe different sets of
-            instrumented libraries/ranges.
+            True if, for some key, the two sources' *reliably parsed* requirements
+            provably describe different sets of instrumented libraries/ranges.
         """
+        disagreement, _ = self._evaluate_instruments_cross_check()
+        return disagreement
+
+    def has_unresolved_metadata(self) -> bool:
+        """
+        Check whether the package.py/pyproject.toml cross-check has any gap that
+        keeps has_metadata_disagreement() from being a confident True/False:
+
+        - a package.py `_instruments`/`_instruments_any` field that *is* assigned
+          but couldn't be statically resolved — e.g. a starred expression
+          (`(*_SOME_TUPLE,)`), a name/attribute reference to something outside the
+          file, a comprehension, or any other non-literal expression
+          `_resolve_static_value` can't determine without executing code; or
+        - a key where the two sides' *parseable* requirements appear to agree, but
+          a requirement string on either side (pyproject.toml's list, or
+          package.py's tuple) couldn't be parsed at all and was silently dropped
+          from that comparison — an apparent agreement built by omitting the one
+          entry that might have actually disagreed can't be trusted.
+
+        Must be called after parse().
+
+        This is the "we can't tell" signal has_metadata_disagreement() deliberately
+        excludes from its True/False result (see its docstring): neither case is a
+        confirmed match nor a confirmed disagreement, so neither may silently
+        collapse into "field absent" or "sources agree" either. Callers that need
+        to flag a package for manual review because its cross-check couldn't be
+        fully trusted should check this separately from has_metadata_disagreement().
+
+        Returns:
+            True if any instrument field was unresolvable, or any key's apparent
+            agreement was built on a dropped, unparseable requirement.
+        """
+        _, unresolved = self._evaluate_instruments_cross_check()
+        return unresolved
+
+    def _evaluate_instruments_cross_check(self) -> tuple[bool, bool]:
+        """
+        Compare package.py's `_instruments`/`_instruments_any` against
+        pyproject.toml's matching keys, one key at a time. Shared by
+        has_metadata_disagreement() and has_unresolved_metadata() so both read a
+        single, consistent comparison pass rather than two separately-reasoned
+        ones.
+
+        Returns:
+            (disagreement, unresolved) — disagreement is True if some key's
+            reliably parsed requirements provably differ; unresolved is True if
+            some key's package.py field wasn't statically resolvable, or if an
+            apparent per-key agreement was reached only by dropping an
+            unparseable requirement from one side (see has_unresolved_metadata()).
+        """
+        unresolved = any(specs is _UNRESOLVED for specs in self._package_py_instruments.values())
+
         if all(specs is None or specs is _UNRESOLVED for specs in self._package_py_instruments.values()):
-            return False
+            return False, unresolved
+
+        disagreement = False
 
         for source_key, specs in self._package_py_instruments.items():
             if specs is None or specs is _UNRESOLVED:
@@ -280,10 +412,13 @@ class PackageParser:
                 continue
 
             package_py_set = set()
+            package_py_had_unparseable = False
             for spec in specs:
                 parsed = _split_requirement(spec)
-                if parsed is not None:
-                    package_py_set.add(_normalize_for_comparison(*parsed))
+                if parsed is None:
+                    package_py_had_unparseable = True
+                    continue
+                package_py_set.add(_normalize_for_comparison(*parsed))
 
             pyproject_set = {
                 _normalize_for_comparison(library, rng)
@@ -291,31 +426,16 @@ class PackageParser:
             }
 
             if package_py_set != pyproject_set:
-                return True
+                disagreement = True
+            elif package_py_had_unparseable or source_key in self._pyproject_unparseable_keys:
+                # The reliably-parsed subsets match, but a malformed requirement
+                # was dropped from one side for this key — that apparent
+                # agreement can't be trusted; a genuine mismatch could be hiding
+                # in the entry that couldn't be parsed. Must not report this key
+                # as agreeing "by omission".
+                unresolved = True
 
-        return False
-
-    def has_unresolved_metadata(self) -> bool:
-        """
-        Check whether package.py defines an `_instruments`/`_instruments_any` field
-        whose value could not be statically resolved — e.g. a starred expression
-        (`(*_SOME_TUPLE,)`), a bare name or attribute reference (`_SOME_CONSTANT`,
-        `mod.CONST`), a comprehension, or any other non-literal expression that
-        `_safe_eval_container` can't determine without executing code. Must be
-        called after parse().
-
-        This is the "we can't tell" signal has_metadata_disagreement() deliberately
-        excludes from its True/False result (see its docstring): an unresolved field
-        is neither a confirmed match nor a confirmed disagreement, so it must not
-        silently collapse into "field absent" either. Callers that need to flag a
-        package for manual review because its package.py couldn't be fully
-        cross-checked should check this separately from has_metadata_disagreement().
-
-        Returns:
-            True if any package.py instrument field was assigned a value that
-            couldn't be statically resolved.
-        """
-        return any(specs is _UNRESOLVED for specs in self._package_py_instruments.values())
+        return disagreement, unresolved
 
     def _parse_pyproject_toml(self) -> dict | None:
         """Read and parse pyproject.toml."""
@@ -360,7 +480,7 @@ class PackageParser:
     def _read_dunder_version(self, version_file: Path) -> str:
         """Safely extract `__version__ = "..."` from a version file via ast, without executing it."""
         try:
-            tree = ast.parse(version_file.read_text())
+            tree = ast.parse(version_file.read_text(encoding="utf-8"))
         except (OSError, SyntaxError) as e:
             logger.warning("Failed to parse version file %s: %s", version_file, e)
             return ""
@@ -386,10 +506,20 @@ class PackageParser:
         didn't establish the precise semantic difference between the two keys
         (schema design §4).
 
+        A requirement string that can't be parsed is dropped from the returned
+        list (registry output can't carry a malformed entry — there's no
+        library/version_range to write), but its source_key is recorded in
+        `self._pyproject_unparseable_keys` as a side effect: dropping the entry
+        here must not let a later disagreement comparison treat that key's
+        remaining, parseable entries as if they were the *complete* set — see
+        _evaluate_instruments_cross_check().
+
         Returns:
             List of {library, version_range, source_key} dicts, sorted by
             (source_key, library, version_range) for deterministic output.
         """
+        self._pyproject_unparseable_keys = set()
+
         if not isinstance(optional_deps, dict):
             return []
 
@@ -404,6 +534,7 @@ class PackageParser:
                     logger.warning(
                         "Could not parse requirement %r (%s) for %s", spec, source_key, self.package_path.name
                     )
+                    self._pyproject_unparseable_keys.add(source_key)
                     continue
                 library, version_range = parsed
                 results.append({"library": library, "version_range": version_range, "source_key": source_key})
@@ -455,7 +586,7 @@ class PackageParser:
             (bool | None). All None if no package.py was found.
         """
         candidates = sorted(
-            p for p in self.package_path.rglob("package.py") if "tests" not in p.parts and "test" not in p.parts
+            p for p in self.package_path.rglob("package.py") if not _is_under_excluded_test_dir(p, self.package_path)
         )
         if not candidates:
             return self._empty_package_py_result()
@@ -479,46 +610,77 @@ class PackageParser:
     def _parse_package_py(self, path: Path) -> dict:
         """
         Safely extract `_instruments`, `_instruments_any`, `_supports_metrics`, and
-        `_semconv_status` from a package.py file via `ast.literal_eval` (plus the
-        narrow empty-container-call allowlist in `_safe_eval_container`). The file is
-        never executed. Handles both plain and annotated assignments.
+        `_semconv_status` from a package.py file via static AST resolution
+        (`_resolve_static_value` for the instrument fields, plain `ast.literal_eval`
+        for the scalar fields). The file is never executed. Handles both plain and
+        annotated assignments.
+
+        Real upstream `_instruments_any` definitions are frequently not bare
+        literals — e.g. botocore/httpx's `(*_instruments_botocore,
+        *_instruments_aio)` or psycopg2/cassandra's direct `_psycopg2_instruments`
+        reference — so every top-level assignment in the file is tracked as a
+        potential same-file constant (`constants`, built up in file order) that a
+        later `_instruments`/`_instruments_any` reference or starred-unpack may
+        depend on, not only assignments to those two field names themselves.
         """
         result = self._empty_package_py_result()
 
         try:
-            tree = ast.parse(path.read_text())
+            tree = ast.parse(path.read_text(encoding="utf-8"))
         except (OSError, SyntaxError) as e:
             logger.warning("Failed to parse %s: %s", path, e)
             return result
 
+        constants: dict[str, object] = {}
+
         for name, value_node in _iter_field_assignments(tree):
-            if name in _PACKAGE_PY_INSTRUMENT_FIELDS:
-                source_key = _PACKAGE_PY_INSTRUMENT_FIELDS[name]
-                try:
-                    value = _safe_eval_container(value_node)
-                except (ValueError, SyntaxError):
-                    # The field *is* assigned, but the static evaluator can't determine
-                    # its value (starred expressions, name/attribute references,
-                    # comprehensions, etc.) without executing code, which this parser
-                    # never does. That's a distinct state from "not assigned at all" —
-                    # collapsing it into the default `None` would let
-                    # has_metadata_disagreement() silently treat an unresolvable
-                    # value as an intentional empty list. Mark it unresolved instead.
-                    logger.warning(
-                        "Could not statically resolve %s in %s; treating as unresolved rather than absent",
-                        name,
-                        path,
-                    )
-                    result["instruments"][source_key] = _UNRESOLVED
-                    continue
-                if isinstance(value, (list, tuple)):
-                    result["instruments"][source_key] = list(value)
-            elif name in _PACKAGE_PY_SCALAR_FIELDS:
+            if name in _PACKAGE_PY_SCALAR_FIELDS:
                 try:
                     value = ast.literal_eval(value_node)
                 except (ValueError, SyntaxError):
                     logger.warning("Could not evaluate %s in %s", name, path)
                     continue
-                result[_PACKAGE_PY_SCALAR_FIELDS[name]] = value
+                field = _PACKAGE_PY_SCALAR_FIELDS[name]
+                expected_type = _PACKAGE_PY_SCALAR_TYPES[field]
+                if value is not None and not isinstance(value, expected_type):
+                    logger.warning(
+                        "Unexpected type for %s in %s: %r (expected %s)",
+                        name,
+                        path,
+                        value,
+                        expected_type.__name__,
+                    )
+                    continue
+                result[field] = value
+                continue
+
+            try:
+                value = _resolve_static_value(value_node, constants)
+            except (ValueError, SyntaxError):
+                if name in _PACKAGE_PY_INSTRUMENT_FIELDS:
+                    # The field *is* assigned, but the static evaluator can't
+                    # determine its value (a comprehension, an out-of-file
+                    # reference, an unrecognized call, etc.) without executing
+                    # code, which this parser never does. That's a distinct state
+                    # from "not assigned at all" — collapsing it into the default
+                    # `None` would let has_metadata_disagreement() silently treat
+                    # an unresolvable value as an intentional empty list. Mark it
+                    # unresolved instead.
+                    logger.warning(
+                        "Could not statically resolve %s in %s; treating as unresolved rather than absent",
+                        name,
+                        path,
+                    )
+                    result["instruments"][_PACKAGE_PY_INSTRUMENT_FIELDS[name]] = _UNRESOLVED
+                continue
+
+            # Recorded regardless of `name` — an auxiliary variable like
+            # `_instruments_botocore` needs to be available in `constants` for a
+            # later `_instruments_any` reference/starred-unpack to resolve, even
+            # though it isn't itself one of the tracked field names.
+            constants[name] = value
+
+            if name in _PACKAGE_PY_INSTRUMENT_FIELDS and isinstance(value, (list, tuple)):
+                result["instruments"][_PACKAGE_PY_INSTRUMENT_FIELDS[name]] = list(value)
 
         return result
