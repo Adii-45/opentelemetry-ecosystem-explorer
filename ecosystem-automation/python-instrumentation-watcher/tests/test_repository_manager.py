@@ -344,6 +344,18 @@ def test_setup_resolves_a_real_release_version_not_mains_dev_placeholder(tmp_pat
     version_file.write_text('__version__ = "0.65b0"\n')
     run_git(origin, "add", ".")
     git_commit(origin, "Prepare release 0.65b0")
+    # git's initial-branch-name default is environment-dependent (varies with
+    # init.defaultBranch — e.g. local dev machines default to "main" while a
+    # clean CI runner may default to "master"), but _pull_latest hardcodes
+    # "git checkout main" to match the real opentelemetry-python-contrib repo's
+    # actual default branch. The synthetic origin here must be pinned to "main"
+    # explicitly rather than relying on whatever `git init` happened to default
+    # to — same pattern as collector-watcher's `mock_repo` fixture
+    # (collector-watcher/tests/test_repository_manager.py).
+    try:
+        run_git(origin, "checkout", "-b", "main")
+    except subprocess.CalledProcessError:
+        run_git(origin, "checkout", "main")
     run_git(origin, "tag", "v0.65b0")
 
     version_file.write_text('__version__ = "0.66b0.dev"\n')
@@ -377,6 +389,18 @@ def test_setup_still_resolves_the_release_version_on_a_second_run(tmp_path, monk
     version_file.write_text('__version__ = "0.65b0"\n')
     run_git(origin, "add", ".")
     git_commit(origin, "Prepare release 0.65b0")
+    # git's initial-branch-name default is environment-dependent (varies with
+    # init.defaultBranch — e.g. local dev machines default to "main" while a
+    # clean CI runner may default to "master"), but _pull_latest hardcodes
+    # "git checkout main" to match the real opentelemetry-python-contrib repo's
+    # actual default branch. The synthetic origin here must be pinned to "main"
+    # explicitly rather than relying on whatever `git init` happened to default
+    # to — same pattern as collector-watcher's `mock_repo` fixture
+    # (collector-watcher/tests/test_repository_manager.py).
+    try:
+        run_git(origin, "checkout", "-b", "main")
+    except subprocess.CalledProcessError:
+        run_git(origin, "checkout", "main")
     run_git(origin, "tag", "v0.65b0")
 
     version_file.write_text('__version__ = "0.66b0.dev"\n')
