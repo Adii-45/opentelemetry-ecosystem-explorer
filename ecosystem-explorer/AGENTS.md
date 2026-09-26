@@ -45,6 +45,27 @@ globally, so do not duplicate it per page. A new static route also needs an entr
 
 - Unit tests live next to source as `*.test.ts(x)` and run with `bun run test`. Integration tests
   use `*.integration.test.ts(x)` and run with `bun run test:integration`.
+- The unit suite and `bun run typecheck` must run without the generated database.
+  `public/data/{javaagent,collector,configuration}/` is builder output that is not always present in
+  a checkout, so a test that reads it belongs in the integration suite. The
+  `typecheck-without-database` job in `.github/workflows/build-and-test.yml` enforces this on every
+  PR. Check it locally before pushing:
+
+  ```bash
+  tmp=$(mktemp -d)
+  mv public/data/javaagent public/data/collector public/data/configuration "$tmp"/
+  (
+    trap 'mv "$tmp"/* public/data/' EXIT
+    bun run typecheck && bun run test
+  )
+  ```
+
+- Resolve content-addressed corpus files through the version manifest (`versions/<v>-index.json` →
+  `<id>-<hash>.json`) or the production loader (`loadAllInstrumentations` in
+  `src/lib/api/javaagent-data.ts`, reached via `installFetchInterceptor()` from
+  `src/test/integration/helpers/fetch-interceptor`). Never pick a file by mtime or as "the newest
+  file in a directory". mtime is checkout time after a clone and extraction time after an untar, so
+  it orders files arbitrarily.
 - Add or update tests for the code you change.
 - Use `bun run test -t "<name>"` to iterate on a single test without re-running the full suite.
 
@@ -75,8 +96,10 @@ Key rules when working here:
 
 ## Styling
 
-- Color tokens are defined in `src/themes.ts` and applied via Tailwind classes. Do not hardcode
-  colors.
+- Color palettes are defined in `src/styles/tokens.css` and exposed as Tailwind utilities by
+  `src/styles/index.css`. Do not hardcode colors.
+- The resolved `data-theme` on `<html>` controls CSS tokens and Tailwind `dark:` utilities; Auto
+  follows the OS preference. `src/themes.ts` exports only the `ResolvedThemeId` type.
 - Every Radix primitive used in the app must have a wrapper in `src/components/ui/` that adds
   Tailwind styling and accessibility defaults.
 
@@ -248,6 +271,11 @@ When reviewing UI components, always verify:
 - `bun run build` runs typecheck first; strict TypeScript blocks builds on unused locals or
   parameters.
 - Route params are unvalidated. Pages must validate URL params and handle missing data gracefully.
+- `public/data/{javaagent,configuration,collector}/` is generated and owned by
+  `explorer-db-builder`: a `--clean` build `rmtree`s each one, so a curated file committed inside
+  disappears without warning (#882). Hand-maintained data the frontend fetches goes in a sibling
+  directory instead; see the Methodology section of
+  `ecosystem-automation/explorer-db-builder/README.md`.
 
 ## Before finishing
 

@@ -2,7 +2,7 @@ distribution: contrib
 version: 0.161.1-SNAPSHOT
 repository: opentelemetry-collector-contrib
 component_type: processor
-schema_hash: a0135ca939d9
+schema_hash: cf77c72094ec
 components:
 - name: adaptivetailsamplingprocessor
   metadata:
@@ -70,6 +70,41 @@ components:
             monotonic: true
             value_type: int
           unit: '{errors}'
+        processor_adaptive_tail_sampling_sampler_burst_count:
+          description: Cumulative number of intervals in which an adaptive sampler
+            (adaptive_percentage or adaptive_throughput) detected a burst of traffic,
+            labelled by rule, sampler_type, and sampler_algorithm. Not emitted for
+            adaptive_throughput rules using the windowed algorithm, which do not track
+            this counter.
+          enabled: true
+          stability: development
+          sum:
+            async: true
+            monotonic: true
+            value_type: int
+          unit: '{bursts}'
+        processor_adaptive_tail_sampling_sampler_keyspace_size:
+          description: Current number of distinct sampling keys tracked by an adaptive
+            sampler (adaptive_percentage or adaptive_throughput), labelled by rule,
+            sampler_type, and sampler_algorithm. A rising value indicates growing
+            key cardinality, which can degrade sampler accuracy and memory use.
+          enabled: true
+          gauge:
+            async: true
+            value_type: int
+          stability: development
+          unit: '{keys}'
+        processor_adaptive_tail_sampling_sampler_request_count:
+          description: Cumulative number of sample-rate requests made to an adaptive
+            sampler (adaptive_percentage or adaptive_throughput) since it started,
+            labelled by rule, sampler_type, and sampler_algorithm.
+          enabled: true
+          stability: development
+          sum:
+            async: true
+            monotonic: true
+            value_type: int
+          unit: '{requests}'
         processor_adaptive_tail_sampling_trace_span_count:
           description: Distribution of buffered span counts per trace at decision
             time, labelled by rule. Useful for sizing span_limit against the real
@@ -187,7 +222,7 @@ components:
             async: true
             monotonic: true
             value_type: int
-          unit: '{labels}'
+          unit: '{label}'
         processor_cardinality_savings.estimated:
           description: Cumulative estimated dollar value of time-series churn prevented
             by the processor.
@@ -197,7 +232,7 @@ components:
             async: true
             monotonic: true
             value_type: double
-          unit: '{dollars}'
+          unit: '{dollar}'
         processor_cardinality_top.offenders:
           description: Cardinality delta of the top-N highest-growth (metric, label)
             pairs from the last epoch rotation.
@@ -206,7 +241,7 @@ components:
             async: true
             value_type: int
           stability: development
-          unit: '{pairs}'
+          unit: '{pair}'
         processor_cardinality_trackers.active:
           description: Current number of active cardinality trackers across all shards.
           enabled: true
@@ -214,7 +249,7 @@ components:
             async: true
             value_type: int
           stability: development
-          unit: '{trackers}'
+          unit: '{tracker}'
         processor_cardinality_trackers.rejected:
           description: Number of new (metric, label) pairs ignored because max_tracker_count
             was reached.
@@ -224,7 +259,7 @@ components:
             async: true
             monotonic: true
             value_type: int
-          unit: '{trackers}'
+          unit: '{tracker}'
     type: cardinality_guardian
 - name: coralogixprocessor
   metadata:
@@ -422,7 +457,7 @@ components:
           gauge:
             value_type: int
           stability: development
-          unit: '{clusters}'
+          unit: '{cluster}'
         processor_drain_log_records_annotated:
           description: Number of log records successfully annotated with a template.
           enabled: true
@@ -430,7 +465,7 @@ components:
           sum:
             monotonic: true
             value_type: int
-          unit: '{records}'
+          unit: '{record}'
         processor_drain_masks_duplicates:
           attributes:
           - mask
@@ -442,7 +477,7 @@ components:
           sum:
             monotonic: true
             value_type: int
-          unit: '{records}'
+          unit: '{record}'
     type: drain
 - name: filterprocessor
   metadata:
@@ -1936,7 +1971,7 @@ components:
             async: true
             value_type: int
           stability: development
-          unit: '{baselines}'
+          unit: '{baseline}'
         processor_rolling_span_latency_dropped_keys_total:
           description: Number of new baseline keys dropped because max_baselines was
             reached.
@@ -1946,7 +1981,7 @@ components:
             async: true
             monotonic: true
             value_type: int
-          unit: '{keys}'
+          unit: '{key}'
     type: rolling_span_latency
 - name: schemaprocessor
   metadata:

@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 import { lazy, Suspense } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Navigate, Routes, Route, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { isEnabled } from "@/lib/feature-flags";
 import { CncfCallout } from "@/v1/components/layout/cncf-callout";
 import { FooterV1 } from "@/v1/components/layout/footer";
 import { NavBar } from "@/v1/components/layout/nav-bar";
+import { collectorReleaseContext } from "@/v1/lib/collector-release";
 import { Loader } from "@/components/ui/loader";
 import "@/v1/styles/index.css";
 import { InstrumentationHandler } from "@/features/java-agent/instrumentation-handler";
@@ -90,9 +91,29 @@ const ConfigurationBuilderPage = lazy(() =>
 const AboutPage = lazy(() =>
   import("@/features/about/about-page").then((m) => ({ default: m.AboutPage }))
 );
+// Not yet redesigned for v1: reuses the legacy component verbatim under v1 chrome,
+// same as AboutPage/JavaReleaseComparisonPage above.
+const SemanticConventionsPage = lazy(() =>
+  import("@/features/semantic-conventions/semantic-conventions-page").then((m) => ({
+    default: m.SemanticConventionsPage,
+  }))
+);
+const SemanticConventionsTimelinePage = lazy(() =>
+  import("@/features/semantic-conventions/timeline-page").then((m) => ({
+    default: m.SemanticConventionsTimelinePage,
+  }))
+);
 const DevComponentsPage = lazy(() =>
   import("@/v1/features/_dev/components-page").then((m) => ({ default: m.DevComponentsPage }))
 );
+
+function CollectorVersionRedirect() {
+  const { version } = useParams<{ version: string }>();
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const release = collectorReleaseContext({ searchParams, pathVersion: version });
+  return <Navigate to={`${release.listHref}${location.hash}`} replace state={location.state} />;
+}
 
 export function V1App() {
   return (
@@ -123,7 +144,7 @@ export function V1App() {
               />
               <Route path="/collector" element={<CollectorPage />} />
               <Route path="/collector/components" element={<CollectorListPage />} />
-              <Route path="/collector/components/:version" element={<CollectorListPage />} />
+              <Route path="/collector/components/:version" element={<CollectorVersionRedirect />} />
               <Route
                 path="/collector/components/:distribution/:name"
                 element={<CollectorDetailPage />}
@@ -131,6 +152,11 @@ export function V1App() {
               <Route
                 path="/collector/components/:distribution/:name/diff"
                 element={<CollectorDiffPage />}
+              />
+              <Route path="/semantic-conventions" element={<SemanticConventionsPage />} />
+              <Route
+                path="/semantic-conventions/timeline"
+                element={<SemanticConventionsTimelinePage />}
               />
               <Route path="/about" element={<AboutPage />} />
               {isEnabled("DEV_SHOWCASE") && (
