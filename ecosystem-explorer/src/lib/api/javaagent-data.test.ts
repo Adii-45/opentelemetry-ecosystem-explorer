@@ -471,6 +471,36 @@ describe("javaagent-data", () => {
     });
   });
 
+  describe("loadAllInstrumentationDetails", () => {
+    it("keeps 64 fetches in flight and returns every instrumentation in manifest order", async () => {
+      const ids = Array.from({ length: 100 }, (_, i) => `instr-${String(i).padStart(3, "0")}`);
+      const manifest: VersionManifest = {
+        version: "2.10.0",
+        instrumentations: Object.fromEntries(ids.map((id) => [id, `hash-${id}`])),
+      };
+      vi.spyOn(idbCache, "getCached").mockImplementation(async (key: string) =>
+        key === "manifest-2.10.0" ? manifest : null
+      );
+      vi.spyOn(idbCache, "setCached").mockResolvedValue();
+
+      let active = 0;
+      let peak = 0;
+      (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
+        active++;
+        peak = Math.max(peak, active);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        active--;
+        const id = url.split("/instrumentations/")[1].split("/")[0];
+        return { ok: true, json: async () => ({ ...mockInstrumentationData, name: id }) };
+      });
+
+      const result = await javaagentData.loadAllInstrumentationDetails("2.10.0");
+
+      expect(peak).toBe(64);
+      expect(result.map((instr) => instr.name)).toEqual(ids);
+    });
+  });
+
   describe("loadLibraryReadme", () => {
     it("should load library README markdown", async () => {
       const content = "# My Library README";

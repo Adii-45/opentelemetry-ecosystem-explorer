@@ -27,14 +27,14 @@ import { mapWithConcurrency } from "@/lib/map-with-concurrency";
 
 const BASE_DIR = "data/javaagent";
 
-// Cap on concurrent instrumentation fetches in the loadAllInstrumentations
-// fan-out FALLBACK. The primary path now loads a single consolidated per-version
-// bundle (see loadInstrumentationBundle); this fan-out only runs for old cached
-// indexes without a bundle hash, missing bundles, or bundle errors. A version
-// manifest lists ~250 instrumentations, so an unbounded fan-out would queue that
-// many requests at once on a cold cache. 8 keeps a small buffer over the
-// browser's ~6-per-host HTTP/1.1 connection cap without flooding IndexedDB.
-const MAX_INSTRUMENTATION_FETCH_CONCURRENCY = 8;
+// Cap on concurrent per-instrumentation fetches. loadAllInstrumentationDetails
+// (release comparison) always fans out one request per instrumentation;
+// loadAllInstrumentations only does so as a FALLBACK when the per-version bundle
+// is unavailable (see loadInstrumentationBundle). A version manifest lists ~250
+// instrumentations. The data is served over HTTP/2, so requests share one
+// connection and the wall clock is bound by serial round trips; 64 in flight
+// keeps that to ~4 waves without flooding IndexedDB.
+const MAX_INSTRUMENTATION_FETCH_CONCURRENCY = 64;
 
 export interface GlobalConfiguration extends Configuration {
   instrumentations?: string[];
