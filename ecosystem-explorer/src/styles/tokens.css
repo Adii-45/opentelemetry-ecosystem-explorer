@@ -15,8 +15,8 @@
  * Interactive UI chrome (focus rings, hover borders, CTA buttons) uses
  * --primary-hsl / --secondary-hsl to track whichever hue plays that role.
  *
- * Surface tokens differ per theme; syntax tokens reuse the dark palette in
- * light mode for now (revisit when a light-mode syntax consumer lands).
+ * Surface and syntax-highlight tokens differ per theme so themed surfaces
+ * (including code preview panes) keep readable contrast in both modes.
  *
  * Note: dark-theme surface tokens are applied globally (no V1_REDESIGN gate).
  * V1_REDESIGN gates UI components and layout; the base palette ships on merge.
@@ -39,10 +39,6 @@
     --navbar-bg-hsl: 228 38% 38%; /* #3d4c86 */
     --navbar-fg-hsl: 210 17% 98%; /* #f8f9fa (gray-100) */
     --navbar-accent-hsl: var(--otel-orange-hsl); /* hover + active line */
-
-    /* Always-dark terminal panes */
-    --code-bg-hsl: 232 38% 15%; /* Dark navy */
-    --code-fg-hsl: 210 17% 98%;
   }
 
   :root,
@@ -76,6 +72,10 @@
     --surface-card-bg: hsl(var(--card-hsl) / 0.8);
     --hero-gradient-opacity: 0.08;
     --hero-grid-opacity: 0.1;
+
+    /* Code preview panes (config builder output, config-card snippets) */
+    --code-bg-hsl: 232 38% 15%; /* Dark navy */
+    --code-fg-hsl: 210 17% 98%;
 
     /* Syntax */
     --syntax-comment-hsl: 220 18% 58%;
@@ -120,16 +120,16 @@
     --hero-gradient-opacity: 0.15; /* Boosted for white background */
     --hero-grid-opacity: 0.15;
 
-    /* Always-dark terminal panes */
-    --code-bg-hsl: 232 38% 15%; /* Dark navy */
-    --code-fg-hsl: 210 17% 98%;
+    /* Code preview panes — light editor surface, mirrors muted/foreground */
+    --code-bg-hsl: 214 32% 91%; /* Slate-200, same as --muted-hsl */
+    --code-fg-hsl: 215 25% 15%; /* Deep slate text, same as --foreground-hsl */
 
-    /* Syntax — reuse dark values until a light-mode consumer needs distinct tokens */
-    --syntax-comment-hsl: 220 18% 58%;
-    --syntax-key-hsl: 28 95% 65%;
-    --syntax-string-hsl: 95 60% 65%;
-    --syntax-number-hsl: 330 80% 72%;
-    --syntax-keyword-hsl: 265 70% 78%;
-    --syntax-punct-hsl: 220 22% 55%;
+    /* Syntax — darkened for contrast against the light code pane background */
+    --syntax-comment-hsl: 220 12% 42%;
+    --syntax-key-hsl: 28 90% 38%;
+    --syntax-string-hsl: 95 50% 30%;
+    --syntax-number-hsl: 330 65% 42%;
+    --syntax-keyword-hsl: 265 55% 46%;
+    --syntax-punct-hsl: 220 15% 35%;
   }
 }
