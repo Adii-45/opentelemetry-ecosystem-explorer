@@ -16,6 +16,7 @@
 """Synchronization orchestration for Python instrumentation metadata."""
 
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,9 @@ from .package_parser import PackageParser
 from .package_scanner import PackageScanner
 
 logger = logging.getLogger(__name__)
+
+# PEP 440 development release segment (e.g. "0.1b0.dev", "1.0.dev3", "1.0dev").
+_DEV_RELEASE_RE = re.compile(r"[._-]?dev\d*(\+.*)?$", re.IGNORECASE)
 
 
 class InstrumentationSync:
@@ -61,6 +65,10 @@ class InstrumentationSync:
         For each package:
         - If the current version already exists in the registry, skip it
         - Otherwise parse and write the metadata
+        - Skip a package whose version is a `.dev` release: a repo-wide release
+          tag can contain a package that has never been published (e.g. a newly
+          added instrumentation still at "0.1b0.dev"), and tracking that string
+          would also make version_exists() skip it until its version changes
         - Separately, report (but do not block on) a pyproject.toml/package.py
           `instruments` disagreement, per schema design §7 open decision #2
         - Separately, report (but do not block on) package.py metadata that could
@@ -70,13 +78,14 @@ class InstrumentationSync:
           silently vanishing into "no disagreement"
 
         Returns:
-            Summary dict with counts of new, skipped, failed,
+            Summary dict with counts of new, skipped, failed, unreleased,
             metadata-disagreeing, and unresolved-metadata packages
         """
         summary: dict[str, Any] = {
             "new": [],
             "skipped": [],
             "failed": [],
+            "unreleased": [],
             "disagreements": [],
             "unresolved": [],
         }
@@ -107,6 +116,11 @@ class InstrumentationSync:
 
             package_id = f"{name}@{version}"
 
+            if _DEV_RELEASE_RE.search(version):
+                logger.info("Unreleased development version, not tracking: %s", package_id)
+                summary["unreleased"].append(package_id)
+                continue
+
             if parser.has_metadata_disagreement():
                 logger.warning(
                     "pyproject.toml and package.py disagree on instruments for %s; "
@@ -133,10 +147,11 @@ class InstrumentationSync:
             summary["new"].append(package_id)
 
         logger.info(
-            "Sync complete — new: %d, skipped: %d, failed: %d, disagreements: %d, unresolved: %d",
+            "Sync complete — new: %d, skipped: %d, failed: %d, unreleased: %d, disagreements: %d, unresolved: %d",
             len(summary["new"]),
             len(summary["skipped"]),
             len(summary["failed"]),
+            len(summary["unreleased"]),
             len(summary["disagreements"]),
             len(summary["unresolved"]),
         )

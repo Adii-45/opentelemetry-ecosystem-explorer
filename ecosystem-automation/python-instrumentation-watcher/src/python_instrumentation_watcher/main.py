@@ -41,7 +41,7 @@ def main() -> None:
 
     Exits with a non-zero status if any package genuinely failed to process
     (summary["failed"]), so future CI/nightly automation can detect a bad run.
-    Skipped, unresolved-metadata, and disagreeing packages are expected, non-fatal
+    Skipped, unreleased, unresolved-metadata, and disagreeing packages are expected, non-fatal
     outcomes of a normal run and do not affect the exit status.
     """
     configure_logging()

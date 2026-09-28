@@ -61,7 +61,14 @@ def test_scanner_is_built_with_the_repo_path(collaborators, inventory):
 def test_sync_returns_empty_summary_when_no_packages_found(collaborators, inventory):
     sync = InstrumentationSync(repo_path=REPO_PATH, inventory_manager=inventory)
 
-    assert sync.sync() == {"new": [], "skipped": [], "failed": [], "disagreements": [], "unresolved": []}
+    assert sync.sync() == {
+        "new": [],
+        "skipped": [],
+        "failed": [],
+        "unreleased": [],
+        "disagreements": [],
+        "unresolved": [],
+    }
 
 
 def test_sync_saves_a_package_that_is_not_yet_tracked(collaborators, inventory):
@@ -110,6 +117,37 @@ def test_sync_skips_a_package_already_in_the_registry(collaborators, inventory):
     inventory.save.assert_not_called()
     assert summary["skipped"] == ["opentelemetry-instrumentation-pg@0.60.0"]
     assert summary["new"] == []
+
+
+@pytest.mark.parametrize("version", ["0.1b0.dev", "0.67b0.dev0", "1.0.dev3+local", "1.0dev"])
+def test_sync_does_not_track_an_unreleased_dev_version(collaborators, inventory, version):
+    """A repo-wide release tag can contain a package that was never published —
+    valkey-py is still "0.1b0.dev" at v0.66b0. Writing it would register an
+    uninstallable version and make version_exists() skip the package on every
+    later tag until its version changes."""
+    _, scanner, parser_cls = collaborators
+    scanner.discover_packages.return_value = [package("opentelemetry-instrumentation-valkey-py")]
+    parser_cls.return_value.parse.return_value = {"version": version}
+
+    summary = InstrumentationSync(repo_path=REPO_PATH, inventory_manager=inventory).sync()
+
+    inventory.version_exists.assert_not_called()
+    inventory.save.assert_not_called()
+    assert summary["unreleased"] == [f"opentelemetry-instrumentation-valkey-py@{version}"]
+    assert summary["new"] == []
+    assert summary["failed"] == []
+
+
+@pytest.mark.parametrize("version", ["0.66b0", "0.65b0rc1", "1.16.0", "0.1b0.post1"])
+def test_sync_tracks_a_released_version(collaborators, inventory, version):
+    _, scanner, parser_cls = collaborators
+    scanner.discover_packages.return_value = [package("opentelemetry-instrumentation-flask")]
+    parser_cls.return_value.parse.return_value = {"version": version}
+
+    summary = InstrumentationSync(repo_path=REPO_PATH, inventory_manager=inventory).sync()
+
+    assert summary["new"] == [f"opentelemetry-instrumentation-flask@{version}"]
+    assert summary["unreleased"] == []
 
 
 def test_sync_records_a_failure_when_the_parser_raises(collaborators, inventory):
@@ -290,7 +328,7 @@ def test_sync_logs_the_summary_counts(collaborators, inventory, caplog):
     with caplog.at_level(logging.INFO, logger=logger_name):
         InstrumentationSync(repo_path=REPO_PATH, inventory_manager=inventory).sync()
 
-    assert "new: 1, skipped: 1, failed: 1, disagreements: 0, unresolved: 0" in caplog.text
+    assert "new: 1, skipped: 1, failed: 1, unreleased: 0, disagreements: 0, unresolved: 0" in caplog.text
 
 
 def test_sync_logs_the_parse_failure_with_the_package_name(collaborators, inventory, caplog):

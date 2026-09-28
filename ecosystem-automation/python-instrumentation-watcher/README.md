@@ -54,11 +54,14 @@ Process:
   but couldn't be statically resolved, is excluded from this comparison rather than treated as an
   empty value — and the unresolved case is reported separately (see below), since it means the
   cross-check for that package is incomplete, not that the two sources agree.
-- For each package, skip it if its current version is already tracked; otherwise write a versioned
-  YAML snapshot.
-- Report a sync summary distinguishing new, skipped, failed, metadata-disagreeing, and
+- For each package, skip it if its current version is a `.dev` release or is already tracked;
+  otherwise write a versioned YAML snapshot. A release tag can contain a package that has never been
+  published (e.g. `opentelemetry-instrumentation-valkey-py` is still `0.1b0.dev` at `v0.66b0`), so
+  the tag alone doesn't guarantee a released version.
+- Report a sync summary distinguishing new, skipped, failed, unreleased, metadata-disagreeing, and
   unresolved-metadata packages. A non-empty `failed` count exits the process with a non-zero status;
-  skipped, disagreeing, and unresolved packages are expected, non-fatal outcomes of a normal run.
+  skipped, unreleased, disagreeing, and unresolved packages are expected, non-fatal outcomes of a
+  normal run.
 
 Like the JS watcher — and unlike the Java agent, which has a single release version covering all
 instrumentations — Python packages are resolved and stored at their own, independent version. This

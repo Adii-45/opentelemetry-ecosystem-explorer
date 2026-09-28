@@ -71,12 +71,14 @@ concretely, and found evidence relevant to a third; the rest remain open:
   viable here: `semantic_version.Version` cannot parse PEP 440 pre-release strings like `"0.65b0"`
   at all (not just the `.dev` case), so a Python snapshot version could be neither constructed nor
   compared with the existing tooling. Instead, the watcher checks out the most recent repo-wide
-  release tag before parsing (reusing `BaseRepositoryManager._checkout_version`), so every extracted
-  version is already a real, published release string — there is no Python `-SNAPSHOT` extraction,
-  and none is planned.
+  release tag before parsing (reusing `BaseRepositoryManager._checkout_version`), and skips any
+  package whose version at that tag is still a `.dev` release (a package added but not yet
+  published), so every extracted version is a real, published release string — there is no Python
+  `-SNAPSHOT` extraction, and none is planned.
 - **§7 #3 — structural lockstep-vs-independent signal: not answered, but informed.** Verified
-  against a live clone of `opentelemetry-python-contrib`: as of this PR, every package under
-  `instrumentation/` (the watcher's actual scope) resolves to the same release-tag version — the
+  against a live clone of `opentelemetry-python-contrib`: at `v0.66b0`, every package under
+  `instrumentation/` (the watcher's actual scope) resolves to the release-tag version except the
+  newly added, unpublished `opentelemetry-instrumentation-valkey-py` (`0.1b0.dev`, skipped) — the
   packages that currently version independently (`opentelemetry-instrumentation-openai-v2`,
   `opentelemetry-instrumentation-google-genai`, etc.) are tagged `<package>==<version>` rather than
   the repo-wide `v<version>` line, and live under the separate, explicitly out-of-scope
