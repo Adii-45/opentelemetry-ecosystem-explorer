@@ -310,7 +310,7 @@ def run_builder(clean: bool = False, ecosystem: str = "all", collector_audit_rep
         ecosystem: Which pipeline to run: "javaagent", "configuration", "collector",
             "javascript", or "all".
         collector_audit_report: If set, the collector build writes a JSON report of
-            latest-release components missing a display_name to this path.
+            active catalog components missing a display_name to this path.
 
     Returns:
         0 if all selected pipelines succeed, 1 if any fail.
@@ -362,7 +362,7 @@ def main() -> None:
         default=None,
         metavar="PATH",
         help=(
-            "Write a JSON report of latest-release collector components missing a "
+            "Write a JSON report of active catalog collector components missing a "
             "display_name to PATH. Only produced when the collector pipeline runs."
         ),
     )
