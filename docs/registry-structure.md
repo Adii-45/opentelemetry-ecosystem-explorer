@@ -25,6 +25,10 @@ ecosystem-registry/
 │   └── instrumentation-express/
 │       ├── v0.66.0.yaml                  # One file per version of this package
 │       └── v0.65.0.yaml
+├── python/                               # Per-package, per-version (NOT aggregated)
+│   └── opentelemetry-instrumentation-example/
+│       ├── v0.49b0.yaml                  # One file per version of this package
+│       └── v0.48b0.yaml
 ├── configuration/
 │   ├── v1.0.0/
 │   │   ├── opentelemetry_configuration.yaml   # Root declarative-config schema
@@ -62,9 +66,10 @@ ecosystem-registry/
 ## Key Principles
 
 - **Aggregated YAML files**: One file per component type per version (human-readable, git-friendly).
-  The JavaScript ecosystem is the exception — its packages version independently, so it stores one
-  file per package version rather than an aggregated per-version file (see
-  [JavaScript Structure](#javascript-structure)).
+  JavaScript and Python are the exceptions — their packages version independently (Python via a
+  hybrid lockstep/independent model), so each stores one file per package version rather than an
+  aggregated per-version file (see [JavaScript Structure](#javascript-structure) and
+  [Python Structure](#python-structure)).
 - **Version-scoped**: Each version has a complete, independent snapshot that can be regenerated from
   source
 
@@ -205,6 +210,62 @@ version: 0.66.0
 - `supported_versions` is scraped from the package README; `tested_versions` from `.tav.yml`
 - `in_auto_instrumentations_node` records whether the package is part of the Node
   auto-instrumentation bundle
+
+## Python Structure
+
+Like JavaScript, Python instrumentation packages are **not** aggregated into a single per-version
+file. `opentelemetry-python-contrib` follows a hybrid versioning model — most instrumentation
+packages release in lockstep with the repository's release cadence, but a growing subset version
+independently — so every package gets its own directory and one YAML file per version of that
+package, regardless of which release pattern it follows.
+
+### Python Version Directory Layout
+
+```text
+python/
+└── {package-name}/                 # PyPI distribution name, e.g. opentelemetry-instrumentation-flask
+    └── v{version}.yaml             # e.g. v0.48b0.yaml — one file per version of this package
+```
+
+### Python File Format
+
+**Example**: `python/opentelemetry-instrumentation-example/v0.48b0.yaml`
+
+```yaml
+description: OpenTelemetry instrumentation for the Example framework
+entry_points:
+  - name: example
+    value: opentelemetry.instrumentation.example:ExampleInstrumentor
+homepage: https://github.com/open-telemetry/opentelemetry-python-contrib/tree/main/instrumentation/opentelemetry-instrumentation-example
+instruments:
+  - library: example
+    source_key: instruments
+    version_range: ">=1.0,<3.0"
+name: opentelemetry-instrumentation-example
+repository: open-telemetry/opentelemetry-python-contrib
+requires_python: ">=3.9"
+semantic_convention_status: null
+source_path: instrumentation/opentelemetry-instrumentation-example
+supports_metrics: null
+version: 0.48b0
+```
+
+**Key Features**:
+
+- One file per package version, keyed by the PyPI distribution name (also the `instrumentation/`
+  directory name)
+- Metadata is sourced from `pyproject.toml` (authoritative for `instruments`, `entry_points`,
+  `requires_python`, `homepage`) and cross-checked against `package.py`;
+  `semantic_convention_status` and `supports_metrics` come from `package.py` only, since
+  `pyproject.toml` has no equivalent
+- `instruments[].source_key` preserves which `pyproject.toml` key (`instruments` or
+  `instruments-any`) an entry came from, rather than collapsing the two
+- Disagreements between `pyproject.toml` and `package.py` are logged and reported, never fatal —
+  `pyproject.toml` remains authoritative for the registry's `instruments` field
+- No `-SNAPSHOT` versions: unlike Java/.NET/collector/configuration, the watcher checks out the most
+  recent release tag before parsing and only extracts packages with a real published version, since
+  `main`'s `version.py` always holds an unreleased `.dev` version that never changes between
+  releases
 
 ## Configuration Structure
 

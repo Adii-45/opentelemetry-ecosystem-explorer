@@ -296,10 +296,6 @@ A phase 3 watcher implementation should expect to:
   metadata richness.
 - A `library_readmes/`-style content-addressed README store — the audit found individual package
   READMEs add no unique Explorer-relevant data.
-- Updating `docs/registry-structure.md`. That file documents ecosystems as currently implemented in
-  `ecosystem-registry/`; Python isn't implemented yet. Adding a "Python Structure" section now would
-  describe something that doesn't exist on disk. That update belongs with the phase 3 PR that
-  actually populates `ecosystem-registry/python/`, at which point it should mirror the
-  [JavaScript Structure](../../docs/registry-structure.md#javascript-structure) section and update
-  the "Key Principles" note that currently names JavaScript as the sole per-package-version
-  exception.
+- Updating `docs/registry-structure.md` at phase 2 design time. That file documents ecosystems as
+  currently implemented in `ecosystem-registry/`; Python wasn't implemented yet. (Done since — see
+  [Python Structure](../../docs/registry-structure.md#python-structure).)

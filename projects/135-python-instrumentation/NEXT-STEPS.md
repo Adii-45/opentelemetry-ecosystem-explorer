@@ -4,7 +4,7 @@ issue: 135
 type: roadmap
 phase: "meta"
 status: in-progress
-last_updated: "2026-09-22"
+last_updated: "2026-10-02"
 ---
 
 ## Phase 1: Metadata Audit (Complete)
@@ -22,11 +22,11 @@ See [`02-schema-design.md`](./02-schema-design.md).
 - [x] Account for Python's hybrid release model in the registry layout
 - [x] Determine how to handle packages that release lockstep vs independently versioned ones
 
-## Phase 3: Watcher and Automation (In Progress)
+## Phase 3: Watcher and Automation (Complete)
 
 Watcher core (repository management, package discovery, metadata parsing, version resolution,
-registry generation, disagreement/unresolved-metadata cross-check) is implemented in #1088's PR 1
-(currently open as PR #1099). CI/nightly automation is a separate, later PR — see
+registry generation, disagreement/unresolved-metadata cross-check) was implemented in #1088's PR 1
+(#1099, merged). CI/nightly automation was implemented in #1088's PR 2 (#1205, merged) — see
 [`01-metadata-audit.md`](./01-metadata-audit.md) and [`02-schema-design.md`](./02-schema-design.md)
 for the design this implements.
 
@@ -34,7 +34,10 @@ for the design this implements.
       `package.py`
 - [x] Implement parsing logic for supported versions (`instruments`, `instruments-any`,
       `_instruments`, `_instruments_any`)
-- [ ] CI/nightly automation (scheduled runs, failure notification) — deferred to a follow-up PR
+- [x] CI/nightly automation (scheduled runs, failure notification) — implemented in #1088's PR 2
+      (#1205): nightly schedule plus manual `workflow_dispatch`, reusing the repository's existing
+      `reusable-registry-sync.yml` and `reusable-workflow-notification.yml` rather than a
+      Python-specific mechanism (see `.github/workflows/nightly-registry-update-python.yml`)
 
 ## Later Phases (Future)
 
