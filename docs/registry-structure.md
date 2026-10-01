@@ -255,15 +255,17 @@ version: 0.48b0
 - One file per package version, keyed by the PyPI distribution name (also the `instrumentation/`
   directory name)
 - Metadata is sourced from `pyproject.toml` (authoritative for `instruments`, `entry_points`,
-  `requires_python`, `homepage`) and cross-checked against `package.py`; `semantic_convention_status`
-  and `supports_metrics` come from `package.py` only, since `pyproject.toml` has no equivalent
+  `requires_python`, `homepage`) and cross-checked against `package.py`;
+  `semantic_convention_status` and `supports_metrics` come from `package.py` only, since
+  `pyproject.toml` has no equivalent
 - `instruments[].source_key` preserves which `pyproject.toml` key (`instruments` or
   `instruments-any`) an entry came from, rather than collapsing the two
 - Disagreements between `pyproject.toml` and `package.py` are logged and reported, never fatal —
   `pyproject.toml` remains authoritative for the registry's `instruments` field
 - No `-SNAPSHOT` versions: unlike Java/.NET/collector/configuration, the watcher checks out the most
   recent release tag before parsing and only extracts packages with a real published version, since
-  `main`'s `version.py` always holds an unreleased `.dev` version that never changes between releases
+  `main`'s `version.py` always holds an unreleased `.dev` version that never changes between
+  releases
 
 ## Configuration Structure
 
