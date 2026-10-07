@@ -162,20 +162,10 @@
                         "items": {
                           "type": "string"
                         }
-                      },
-                      "reviewStatus": {
-                        "type": "string",
-                        "const": "accepted"
                       }
                     },
-                    "propertyOrder": [
-                      "source",
-                      "releaseKey",
-                      "namespaces",
-                      "links",
-                      "reviewStatus"
-                    ],
-                    "required": ["links", "namespaces", "releaseKey", "reviewStatus", "source"]
+                    "propertyOrder": ["source", "releaseKey", "namespaces", "links"],
+                    "required": ["links", "namespaces", "releaseKey", "source"]
                   }
                 },
                 "id": {

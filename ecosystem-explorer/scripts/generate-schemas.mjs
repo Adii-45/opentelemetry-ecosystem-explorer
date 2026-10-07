@@ -109,6 +109,12 @@ async function main() {
       "semantic-conventions-history.schema.json"
     );
 
+    await generateSchema(
+      "src/features/semantic-conventions/types.ts",
+      "HistoryManifest",
+      "semantic-conventions-sources.schema.json"
+    );
+
     console.log("\n✓ JSON Schemas generated successfully.");
   } catch (err) {
     console.error("❌ Schema generation failed:", err);

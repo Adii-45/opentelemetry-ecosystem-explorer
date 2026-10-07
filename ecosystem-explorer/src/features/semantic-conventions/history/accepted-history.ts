@@ -25,7 +25,7 @@ import {
 
 const COMMIT_SHA = /^[0-9a-f]{40}$/;
 const DATE_BASES = ["changelog-heading", "release-published-at"];
-const REVIEW_STATUSES = ["accepted", "unreviewed"];
+const SOURCE_MODES = ["release", "commit", "frozen"];
 
 function isHttpsUrl(value: string): boolean {
   try {
@@ -52,11 +52,89 @@ function compareVersions(a: string, b: string): number {
 
 const byString = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
+type Json = Record<string, unknown>;
+
+const isObject = (value: unknown): value is Json =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+const isString = (value: unknown): value is string => typeof value === "string" && value !== "";
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === "string");
+
+/**
+ * Structural check of a hand-edited `sources.json`. `validateHistory` only walks the manifest
+ * once this passes, so a missing or mistyped property is reported rather than thrown.
+ */
+function shapeErrors(manifest: unknown): string[] {
+  const errors: string[] = [];
+  if (!isObject(manifest)) return ["sources.json must be a JSON object"];
+
+  if (typeof manifest.schemaVersion !== "number") errors.push("schemaVersion must be a number");
+  if ("$schema" in manifest && typeof manifest.$schema !== "string") {
+    errors.push("$schema must be a string");
+  }
+
+  const records = (name: string, check: (record: Json, at: string) => void) => {
+    const list = manifest[name];
+    if (!Array.isArray(list)) return errors.push(`${name} must be an array`);
+    list.forEach((record, index) => {
+      if (isObject(record)) check(record, `${name}[${index}]`);
+      else errors.push(`${name}[${index}] must be an object`);
+    });
+  };
+  const text = (record: Json, at: string, key: string, optional = false) => {
+    if (optional && record[key] === undefined) return;
+    if (!isString(record[key])) errors.push(`${at}.${key} must be a non-empty string`);
+  };
+  const strings = (record: Json, at: string, key: string) => {
+    if (!isStringArray(record[key])) errors.push(`${at}.${key} must be an array of strings`);
+  };
+
+  records("sources", (source, at) => {
+    text(source, at, "id");
+    text(source, at, "repository");
+    strings(source, at, "paths");
+    if (typeof source.mode !== "string" || !SOURCE_MODES.includes(source.mode)) {
+      errors.push(`${at}.mode must be one of ${SOURCE_MODES.join(", ")}`);
+    } else if (source.mode !== "frozen") {
+      const start = source.reviewedStart;
+      if (!isObject(start)) errors.push(`${at}.reviewedStart must be an object`);
+      else {
+        text(start, `${at}.reviewedStart`, "commit");
+        text(start, `${at}.reviewedStart`, "tag", true);
+      }
+    }
+  });
+  records("releases", (release, at) => {
+    for (const key of ["key", "source", "tag", "dateBasis"]) text(release, at, key);
+    text(release, at, "commit", true);
+    text(release, at, "baseline", true);
+  });
+  records("lanes", (binding, at) => {
+    text(binding, at, "lane");
+    strings(binding, at, "namespaces");
+    const migration = binding.migration;
+    if (migration === undefined) return;
+    if (!isObject(migration)) return void errors.push(`${at}.migration must be an object`);
+    for (const key of ["eventId", "from", "to"]) text(migration, `${at}.migration`, key);
+  });
+  records("evidence", (evidence, at) => {
+    text(evidence, at, "eventId");
+    text(evidence, at, "source");
+    text(evidence, at, "release", true);
+    strings(evidence, at, "namespaces");
+    strings(evidence, at, "links");
+  });
+  return errors;
+}
+
 /**
  * Checks that `sources.json` is consistent with the authoritative `timeline.json`. Returns
  * human-readable problems; an empty list means the pair is valid.
  */
 export function validateHistory(timeline: TimelineData, manifest: HistoryManifest): string[] {
+  const shape = shapeErrors(manifest);
+  if (shape.length > 0) return shape;
+
   const errors: string[] = [];
   const fail = (message: string) => errors.push(message);
 
@@ -169,9 +247,6 @@ export function validateHistory(timeline: TimelineData, manifest: HistoryManifes
     if (!event) fail(`evidence references unknown event ${evidence.eventId}`);
     if (!sourceIds.has(evidence.source))
       fail(`evidence for ${evidence.eventId}: unknown source ${evidence.source}`);
-    if (!REVIEW_STATUSES.includes(evidence.reviewStatus)) {
-      fail(`evidence for ${evidence.eventId}: unknown reviewStatus ${evidence.reviewStatus}`);
-    }
     if (evidence.release !== undefined && event && evidence.release !== event.release) {
       fail(
         `evidence for ${evidence.eventId}: release ${evidence.release} differs from the event's`
@@ -191,8 +266,8 @@ export function validateHistory(timeline: TimelineData, manifest: HistoryManifes
 
 /**
  * Builds the accepted-history view from `timeline.json` and `sources.json`. Event fields are
- * copied unchanged; source identity and accepted evidence are added alongside. Unreviewed
- * evidence is dropped. Output order is fixed: releases by version, events by date then ID.
+ * copied unchanged; source identity and evidence are added alongside. Everything in
+ * `sources.json` is accepted history. Output order is fixed: releases by version, events by date then ID.
  */
 export function projectAcceptedHistory(
   timeline: TimelineData,
@@ -213,13 +288,12 @@ export function projectAcceptedHistory(
     sourceId: sourceForUrl(manifest.sources, event.source)!.id,
     releaseKey: event.release === null ? null : releaseKey(event.release),
     evidence: manifest.evidence
-      .filter((e) => e.eventId === event.id && e.reviewStatus === "accepted")
+      .filter((e) => e.eventId === event.id)
       .map((e) => ({
         source: e.source,
         releaseKey: e.release === undefined ? null : releaseKey(e.release),
         namespaces: [...e.namespaces].sort(byString),
         links: [...e.links].sort(byString),
-        reviewStatus: "accepted" as const,
       })),
   });
 

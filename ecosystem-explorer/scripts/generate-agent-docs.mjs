@@ -544,7 +544,10 @@ export function buildJavaInstrumentationPage(instr, jsonUrl, latestJsonUrl) {
  * intentionally lightweight — the route's title/description plus links into the
  * agent indexes — so agents fetching `/collector.md` etc. get real content.
  */
-function buildStaticRoutePage(title, description) {
+export function buildStaticRoutePage(title, description, pathname = "") {
+  const semconvLink = pathname.startsWith("/semantic-conventions")
+    ? "- [Semantic convention history](/agent/semantic-conventions/index.md)\n"
+    : "";
   return `# ${title}
 
 <!-- llms-txt-link: /llms.txt -->
@@ -555,7 +558,7 @@ ${description}
 
 - [All Collector components](/agent/collector/index.md)
 - [All Java agent instrumentations](/agent/javaagent/index.md)
-- [Full documentation index](/llms.txt)
+${semconvLink}- [Full documentation index](/llms.txt)
 `;
 }
 
@@ -964,7 +967,7 @@ async function generateStaticRoutePages() {
   for (const [pathname, meta] of Object.entries(STATIC_ROUTE_META)) {
     const outPath = staticRouteMdPath(pathname);
     await fs.mkdir(path.dirname(outPath), { recursive: true });
-    await fs.writeFile(outPath, buildStaticRoutePage(meta.title, meta.description));
+    await fs.writeFile(outPath, buildStaticRoutePage(meta.title, meta.description, pathname));
     pages.push({ label: meta.title, pageUrl: pathname });
   }
   return pages;
@@ -1160,5 +1163,8 @@ async function generateDocs() {
 // Bun and Node so the build step can never silently become a no-op.
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === __filename;
 if (isMain) {
-  generateDocs().catch(console.error);
+  generateDocs().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
 }

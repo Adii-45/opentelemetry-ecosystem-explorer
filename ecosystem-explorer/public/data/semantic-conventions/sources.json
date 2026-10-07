@@ -1,4 +1,5 @@
 {
+  "$schema": "../../schemas/semantic-conventions-sources.schema.json",
   "schemaVersion": 1,
   "sources": [
     {
@@ -429,8 +430,7 @@
         "https://github.com/open-telemetry/semantic-conventions/pull/3696",
         "https://github.com/open-telemetry/semantic-conventions/commit/c9e48b1d1af565454b73b9e14f0841bca4670ada",
         "https://github.com/open-telemetry/semantic-conventions-genai/commit/ebe3d1fb9fdda3398099e11ef91c4c490912f88d"
-      ],
-      "reviewStatus": "accepted"
+      ]
     },
     {
       "eventId": "http-freeze",
@@ -439,8 +439,7 @@
       "namespaces": ["http"],
       "links": [
         "https://github.com/open-telemetry/semantic-conventions/blob/v1.21.0/docs/http/http-spans.md"
-      ],
-      "reviewStatus": "accepted"
+      ]
     },
     {
       "eventId": "process-attributes-rc",
@@ -449,8 +448,7 @@
       "namespaces": ["process"],
       "links": [
         "https://github.com/open-telemetry/semantic-conventions/commit/e6ce0d219ee61af553f8fc1118c25a266eda6122"
-      ],
-      "reviewStatus": "accepted"
+      ]
     },
     {
       "eventId": "process-rc",
@@ -459,8 +457,7 @@
       "namespaces": ["process"],
       "links": [
         "https://github.com/open-telemetry/semantic-conventions/commit/a03df15a2b528ee2b18e400aafd58aba48664aa9"
-      ],
-      "reviewStatus": "accepted"
+      ]
     }
   ]
 }

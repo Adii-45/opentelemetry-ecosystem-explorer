@@ -15,15 +15,25 @@
  */
 
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { beforeAll, describe, expect, it } from "vitest";
 import type { HistoryManifest, TimelineData } from "../types";
 import { projectAcceptedHistory, validateHistory } from "./accepted-history";
 
-const read = <T>(file: string): T =>
-  JSON.parse(readFileSync(`public/data/semantic-conventions/${file}`, "utf8"));
+const dataDir = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../../../public/data/semantic-conventions"
+);
+const read = <T>(file: string): T => JSON.parse(readFileSync(resolve(dataDir, file), "utf8"));
 
-const timeline = read<TimelineData>("timeline.json");
-const manifest = read<HistoryManifest>("sources.json");
+let timeline: TimelineData;
+let manifest: HistoryManifest;
+
+beforeAll(() => {
+  timeline = read<TimelineData>("timeline.json");
+  manifest = read<HistoryManifest>("sources.json");
+});
 const clone = <T>(value: T): T => structuredClone(value);
 
 describe("accepted-history sidecar", () => {
@@ -146,8 +156,75 @@ describe("validateHistory", () => {
   });
 });
 
+describe("validateHistory on malformed manifests", () => {
+  // Deliberately loose: these tests hand the validator shapes the types forbid.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  type Loose = Record<string, any>;
+  const validate = (mutate: (m: Loose) => void) => {
+    const bad = clone(manifest) as unknown as Loose;
+    mutate(bad);
+    return validateHistory(timeline, bad as unknown as HistoryManifest);
+  };
+
+  it("reports a missing lane namespaces instead of throwing", () => {
+    expect(validate((m) => delete m.lanes[0].namespaces)).toEqual([
+      "lanes[0].namespaces must be an array of strings",
+    ]);
+  });
+
+  it("reports mistyped lane, binding and migration shapes", () => {
+    const problems = validate((m) => {
+      m.lanes[1] = "http";
+      m.lanes[2].namespaces = "rpc";
+      m.lanes[3].migration = { eventId: 7 };
+    }).join("\n");
+    expect(problems).toContain("lanes[1] must be an object");
+    expect(problems).toContain("lanes[2].namespaces must be an array of strings");
+    expect(problems).toContain("lanes[3].migration.eventId must be a non-empty string");
+    expect(problems).toContain("lanes[3].migration.from must be a non-empty string");
+  });
+
+  it("reports missing top-level collections and a non-object file", () => {
+    expect(validate((m) => delete m.releases)).toContain("releases must be an array");
+    expect(validate((m) => (m.evidence = {}))).toContain("evidence must be an array");
+    expect(validateHistory(timeline, null as unknown as HistoryManifest)).toEqual([
+      "sources.json must be a JSON object",
+    ]);
+  });
+
+  it("reports malformed sources, releases and evidence", () => {
+    const problems = validate((m) => {
+      delete m.sources[0].paths;
+      delete m.sources[0].reviewedStart;
+      m.sources[2].mode = "watch";
+      delete m.releases[0].tag;
+      m.evidence[0].links = [1];
+    }).join("\n");
+    expect(problems).toContain("sources[0].paths must be an array of strings");
+    expect(problems).toContain("sources[0].reviewedStart must be an object");
+    expect(problems).toContain("sources[2].mode must be one of");
+    expect(problems).toContain("releases[0].tag must be a non-empty string");
+    expect(problems).toContain("evidence[0].links must be an array of strings");
+  });
+
+  it("still reports invalid references once the shape is valid", () => {
+    expect(validate((m) => (m.lanes[0].lane = "missing")).join()).toContain(
+      "lane binding for unknown lane missing"
+    );
+  });
+
+  it("accepts the editor $schema hint", () => {
+    expect(manifest.$schema).toBeTruthy();
+    expect(validateHistory(timeline, manifest)).toEqual([]);
+  });
+});
+
 describe("projectAcceptedHistory", () => {
-  const history = projectAcceptedHistory(timeline, manifest);
+  let history: ReturnType<typeof projectAcceptedHistory>;
+
+  beforeAll(() => {
+    history = projectAcceptedHistory(timeline, manifest);
+  });
 
   it("is deterministic", () => {
     expect(JSON.stringify(projectAcceptedHistory(timeline, manifest))).toBe(
@@ -171,7 +248,7 @@ describe("projectAcceptedHistory", () => {
       expect(event).toEqual(original);
       expect(sourceId).toBeTruthy();
       expect(releaseKey === null).toBe(original.release === null);
-      expect(evidence.every((item) => item.reviewStatus === "accepted")).toBe(true);
+      expect(Array.isArray(evidence)).toBe(true);
     }
   });
 
@@ -198,18 +275,11 @@ describe("projectAcceptedHistory", () => {
     });
   });
 
-  it("never publishes unreviewed evidence", () => {
-    const withCandidate = clone(manifest);
-    withCandidate.evidence.push({
-      eventId: "process-rc",
-      source: "semantic-conventions",
-      namespaces: ["process"],
-      links: ["https://github.com/open-telemetry/semantic-conventions/pull/1"],
-      reviewStatus: "unreviewed",
-    });
-    const published = JSON.stringify(projectAcceptedHistory(timeline, withCandidate));
-    expect(published).not.toContain("unreviewed");
-    expect(published).not.toContain('/pull/1"');
+  it("exposes no candidate or unreviewed state in the public sidecar or its projection", () => {
+    const sidecar = readFileSync(resolve(dataDir, "sources.json"), "utf8");
+    for (const text of [sidecar, JSON.stringify(history)]) {
+      expect(text).not.toMatch(/unreviewed|reviewStatus/i);
+    }
   });
 
   it("refuses to project invalid input", () => {

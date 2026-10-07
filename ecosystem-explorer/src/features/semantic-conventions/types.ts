@@ -125,12 +125,12 @@ export interface HistoryEvidence {
   release?: string;
   namespaces: string[];
   links: string[];
-  /** Only `accepted` evidence is published. */
-  reviewStatus: "accepted" | "unreviewed";
 }
 
 /** Hand-authored `sources.json`. */
 export interface HistoryManifest {
+  /** Editor hint pointing at the generated JSON Schema; ignored by validation. */
+  $schema?: string;
   schemaVersion: number;
   sources: HistorySource[];
   releases: HistoryRelease[];
@@ -152,7 +152,6 @@ export interface AcceptedHistoryEvidence {
   releaseKey: string | null;
   namespaces: string[];
   links: string[];
-  reviewStatus: "accepted";
 }
 
 export interface AcceptedHistoryLane extends TimelineLaneDef {

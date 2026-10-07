@@ -9,7 +9,9 @@ retaining, correcting, splitting, or removing each non-baseline event.
 
 `timeline.json` is the authoritative record of accepted history. Its formatting is intentionally
 preserved, including bare release keys in `dates` and spec-era events, and it is not generated.
-`sources.json` is a hand-authored sidecar that qualifies it without rewriting it:
+`sources.json` is a hand-authored sidecar that qualifies it without rewriting it. Its `$schema`
+(`public/schemas/semantic-conventions-sources.schema.json`, generated from `HistoryManifest`) lets
+editors flag mistakes:
 
 - `sources`: repository-qualified source IDs (`semantic-conventions`, `semantic-conventions-genai`,
   and a frozen `opentelemetry-specification` that existing events cite but nothing monitors), their
@@ -22,7 +24,8 @@ preserved, including bare release keys in `dates` and spec-era events, and it is
   ancestor release as comparison baseline. A bare key is never inferred; an unmapped or doubly
   mapped key fails validation. A comparison baseline is not a timeline `baseline` event.
 - `lanes`: the upstream model namespaces behind each lane, and the migration boundary for GenAI.
-- `evidence`: extra accepted links for an existing event ID. Only `accepted` evidence is published.
+- `evidence`: extra links for an existing event ID. Everything in `sources.json` is accepted
+  history and is served as-is, so it never holds candidate or unreviewed records.
 
 `validateHistory` checks the pair and `projectAcceptedHistory`
 (`src/features/semantic-conventions/history/accepted-history.ts`) is the single projection used for

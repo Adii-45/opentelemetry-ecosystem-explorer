@@ -1,0 +1,269 @@
+{
+  "description": "Hand-authored `sources.json`.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "Editor hint pointing at the generated JSON Schema; ignored by validation.",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "number"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "allOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "description": "Repository-qualified identity, e.g. `semantic-conventions`.",
+                    "type": "string"
+                  },
+                  "repository": {
+                    "description": "HTTPS repository URL without a trailing slash.",
+                    "type": "string"
+                  },
+                  "paths": {
+                    "description": "Repository-relative paths that carry convention changes.",
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "propertyOrder": ["id", "repository", "paths"],
+                "required": ["id", "paths", "repository"]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "description": "Discovered from published releases (core).",
+                    "type": "string",
+                    "const": "release"
+                  },
+                  "reviewedStart": {
+                    "description": "Accepted history covers this revision; later changes are unreviewed.",
+                    "type": "object",
+                    "properties": {
+                      "tag": {
+                        "type": "string"
+                      },
+                      "commit": {
+                        "type": "string"
+                      }
+                    },
+                    "propertyOrder": ["tag", "commit"],
+                    "required": ["commit"]
+                  }
+                },
+                "propertyOrder": ["mode", "reviewedStart"],
+                "required": ["mode", "reviewedStart"]
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "description": "Repository-qualified identity, e.g. `semantic-conventions`.",
+                    "type": "string"
+                  },
+                  "repository": {
+                    "description": "HTTPS repository URL without a trailing slash.",
+                    "type": "string"
+                  },
+                  "paths": {
+                    "description": "Repository-relative paths that carry convention changes.",
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "propertyOrder": ["id", "repository", "paths"],
+                "required": ["id", "paths", "repository"]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "description": "Discovered from commits, with no release tags (GenAI).",
+                    "type": "string",
+                    "const": "commit"
+                  },
+                  "reviewedStart": {
+                    "description": "Accepted history covers this revision; later commits are unreviewed.",
+                    "type": "object",
+                    "properties": {
+                      "tag": {
+                        "type": "string"
+                      },
+                      "commit": {
+                        "type": "string"
+                      }
+                    },
+                    "propertyOrder": ["tag", "commit"],
+                    "required": ["commit"]
+                  }
+                },
+                "propertyOrder": ["mode", "reviewedStart"],
+                "required": ["mode", "reviewedStart"]
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "description": "Repository-qualified identity, e.g. `semantic-conventions`.",
+                    "type": "string"
+                  },
+                  "repository": {
+                    "description": "HTTPS repository URL without a trailing slash.",
+                    "type": "string"
+                  },
+                  "paths": {
+                    "description": "Repository-relative paths that carry convention changes.",
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "propertyOrder": ["id", "repository", "paths"],
+                "required": ["id", "paths", "repository"]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "description": "Referenced by existing events but never monitored.",
+                    "type": "string",
+                    "const": "frozen"
+                  }
+                },
+                "propertyOrder": ["mode"],
+                "required": ["mode"]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "releases": {
+      "type": "array",
+      "items": {
+        "description": "Maps a bare `timeline.json` release key to its source. The date itself stays in `dates`.\n`baseline` is the nearest ancestor release in the same source (a comparison baseline, not a\ntimeline compatibility-baseline event).",
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "source": {
+            "description": "Repository-qualified identity, e.g. `semantic-conventions`.",
+            "type": "string"
+          },
+          "tag": {
+            "type": "string"
+          },
+          "commit": {
+            "type": "string"
+          },
+          "baseline": {
+            "type": "string"
+          },
+          "dateBasis": {
+            "description": "How a release date was established; mirrors the bases documented in the data README.",
+            "enum": ["changelog-heading", "release-published-at"],
+            "type": "string"
+          }
+        },
+        "propertyOrder": ["key", "source", "tag", "commit", "baseline", "dateBasis"],
+        "required": ["dateBasis", "key", "source", "tag"]
+      }
+    },
+    "lanes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "lane": {
+            "type": "string"
+          },
+          "namespaces": {
+            "description": "Upstream model namespaces (directories under `model/`) this lane covers.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "migration": {
+            "description": "A boundary where this lane's conventions moved between sources.",
+            "type": "object",
+            "properties": {
+              "eventId": {
+                "type": "string"
+              },
+              "from": {
+                "description": "Repository-qualified identity, e.g. `semantic-conventions`.",
+                "type": "string"
+              },
+              "to": {
+                "description": "Repository-qualified identity, e.g. `semantic-conventions`.",
+                "type": "string"
+              }
+            },
+            "propertyOrder": ["eventId", "from", "to"],
+            "required": ["eventId", "from", "to"]
+          }
+        },
+        "propertyOrder": ["lane", "namespaces", "migration"],
+        "required": ["lane", "namespaces"]
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string"
+          },
+          "source": {
+            "description": "Repository-qualified identity, e.g. `semantic-conventions`.",
+            "type": "string"
+          },
+          "release": {
+            "description": "Bare release key from `dates`, when the evidence belongs to a release.",
+            "type": "string"
+          },
+          "namespaces": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "propertyOrder": ["eventId", "source", "release", "namespaces", "links"],
+        "required": ["eventId", "links", "namespaces", "source"]
+      }
+    }
+  },
+  "propertyOrder": ["$schema", "schemaVersion", "sources", "releases", "lanes", "evidence"],
+  "required": ["evidence", "lanes", "releases", "schemaVersion", "sources"],
+  "$schema": "https://json-schema.org/draft-07/schema#"
+}

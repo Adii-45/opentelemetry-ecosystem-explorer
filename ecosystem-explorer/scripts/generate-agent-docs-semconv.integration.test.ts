@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { describe, it, expect } from "vitest";
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { beforeAll, describe, it, expect } from "vitest";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -32,8 +32,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const publicDir = resolve(__dirname, "../public");
 const dataDir = resolve(publicDir, "data/semantic-conventions");
 const readJson = (p: string) => JSON.parse(readFileSync(p, "utf-8"));
-const timeline: TimelineData = readJson(resolve(dataDir, "timeline.json"));
-const manifest: HistoryManifest = readJson(resolve(dataDir, "sources.json"));
+let timeline: TimelineData;
+let manifest: HistoryManifest;
+
+beforeAll(() => {
+  timeline = readJson(resolve(dataDir, "timeline.json"));
+  manifest = readJson(resolve(dataDir, "sources.json"));
+});
 
 async function generate() {
   const outDir = mkdtempSync(resolve(tmpdir(), "agent-docs-semconv-"));
@@ -129,7 +134,6 @@ describe("agent docs: semantic-convention history", () => {
     const outDir = mkdtempSync(resolve(tmpdir(), "agent-docs-semconv-bad-"));
     const publicCopy = mkdtempSync(resolve(tmpdir(), "agent-docs-semconv-public-"));
     try {
-      const { mkdirSync, writeFileSync } = await import("node:fs");
       mkdirSync(resolve(publicCopy, "data/semantic-conventions"), { recursive: true });
       writeFileSync(
         resolve(publicCopy, "data/semantic-conventions/timeline.json"),
