@@ -5,36 +5,36 @@ This directory is hand-maintained frontend data, outside the generated ecosystem
 See [the event audit](EVENT-AUDIT.md) for selection criteria, source checks, and the rationale for
 retaining, correcting, splitting, or removing each non-baseline event.
 
-## Accepted history and source metadata
+## Accepted history
 
-`timeline.json` is the authoritative record of accepted history. Its formatting is intentionally
-preserved, including bare release keys in `dates` and spec-era events, and it is not generated.
-`sources.json` is a hand-authored sidecar that qualifies it without rewriting it. Its `$schema`
-(`public/schemas/semantic-conventions-sources.schema.json`, generated from `HistoryManifest`) lets
-editors flag mistakes:
+`timeline.json` is the single hand-authored record of accepted history; it is curated by hand and not
+generated from upstream. The timeline UI and the agent output read these same records. Its `$schema`
+(`public/schemas/semantic-conventions-history.schema.json`, generated from `TimelineData`) lets
+editors flag mistakes, and `validateHistory`
+(`src/features/semantic-conventions/history/accepted-history.ts`) checks it in tests and in the
+agent-docs build.
 
 - `sources`: repository-qualified source IDs (`semantic-conventions`, `semantic-conventions-genai`,
   and a frozen `opentelemetry-specification` that existing events cite but nothing monitors), their
-  monitoring mode, relevant paths, and the `reviewedStart` revision. Accepted history covers that
-  revision; later upstream changes are not yet reviewed. GenAI has no release tags, so its start is
-  a commit, and it is the first commit made in the destination repository, not imported core
-  history.
-- `releases`: maps every key in `dates` to one source and tag (`1.0.0`–`1.20.0` are spec-era;
-  `1.21.0` onward are core tags), with the immutable commit, the date basis, and the nearest
-  ancestor release as comparison baseline. A bare key is never inferred; an unmapped or doubly
-  mapped key fails validation. A comparison baseline is not a timeline `baseline` event.
-- `lanes`: the upstream model namespaces behind each lane, and the migration boundary for GenAI.
-- `evidence`: extra links for an existing event ID. Everything in `sources.json` is accepted
-  history and is served as-is, so it never holds candidate or unreviewed records.
-
-`validateHistory` checks the pair and `projectAcceptedHistory`
-(`src/features/semantic-conventions/history/accepted-history.ts`) is the single projection used for
-the agent output (`/data/semantic-conventions/accepted-history.json` and
-`/agent/semantic-conventions/`). The timeline UI still loads `timeline.json` unchanged; the
-projection carries each event through untouched.
+  monitoring mode, relevant paths, and `reviewedThrough`, the revision accepted history covers.
+  Later upstream changes are not yet reviewed. GenAI has no release tags, so its mark is a commit:
+  the first commit made in the destination repository, not imported core history.
+- `releases`: keyed `{source}@{tag}` because two repositories can publish the same tag
+  (`1.0.0`–`1.20.0` are spec-era; `1.21.0` onward are core). Each has its `tag`, immutable `commit`
+  (absent for the frozen source), `date`, `dateBasis`, and `baseline`, the nearest ancestor release
+  of the same source. A comparison baseline is not a timeline `baseline` event.
+- `lanes`: the display fields plus the upstream model `namespaces` each lane covers and, for GenAI,
+  the `migration` boundary.
+- `events`: `revision` is a release key, or `{ source, commit }` for a source without releases
+  (spec-era origins today, GenAI milestones later). Optional inline `evidence` links each cite a
+  source's own repository.
 
 Candidates proposed by upstream discovery are not accepted history and do not belong in this
-directory. A maintainer accepts one by editing `timeline.json` and, where useful, `sources.json`.
+directory. A maintainer accepts one by editing `timeline.json`. Event wording and the historical
+formatting of older events are intentionally preserved.
+
+The agent output is published at `/data/semantic-conventions/accepted-history.json` and
+`/agent/semantic-conventions/`.
 
 ## De facto baselines
 

@@ -14,43 +14,11 @@
  * limitations under the License.
  */
 
-import {
-  HISTORY_SCHEMA_VERSION,
-  type AcceptedHistory,
-  type AcceptedHistoryEvent,
-  type HistoryManifest,
-  type HistorySource,
-  type TimelineData,
-} from "../types";
+import { HISTORY_SCHEMA_VERSION, type EventRevision, type TimelineData } from "../types";
 
 const COMMIT_SHA = /^[0-9a-f]{40}$/;
 const DATE_BASES = ["changelog-heading", "release-published-at"];
 const SOURCE_MODES = ["release", "commit", "frozen"];
-
-function isHttpsUrl(value: string): boolean {
-  try {
-    return new URL(value).protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
-/** Source whose repository contains `url`, or undefined for an unrelated URL. */
-function sourceForUrl(sources: HistorySource[], url: string): HistorySource | undefined {
-  return sources.find((source) => url.startsWith(`${source.repository}/`));
-}
-
-function compareVersions(a: string, b: string): number {
-  const pa = a.split(".").map(Number);
-  const pb = b.split(".").map(Number);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
-    if (diff !== 0) return diff;
-  }
-  return 0;
-}
-
-const byString = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 type Json = Record<string, unknown>;
 
@@ -60,21 +28,39 @@ const isString = (value: unknown): value is string => typeof value === "string" 
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((item) => typeof item === "string");
 
+function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function isIsoDate(value: string): boolean {
+  const time = Date.parse(value);
+  return !Number.isNaN(time) && new Date(time).toISOString().slice(0, 10) === value;
+}
+
+/** `{source}@{tag}` for a release key, or `{source}@{commit}` for a commit revision. */
+export function revisionKey(revision: EventRevision): string {
+  return typeof revision === "string" ? revision : `${revision.source}@${revision.commit}`;
+}
+
 /**
- * Structural check of a hand-edited `sources.json`. `validateHistory` only walks the manifest
+ * Structural check of the hand-edited `timeline.json`. `validateHistory` only follows references
  * once this passes, so a missing or mistyped property is reported rather than thrown.
  */
-function shapeErrors(manifest: unknown): string[] {
+function shapeErrors(data: unknown): string[] {
   const errors: string[] = [];
-  if (!isObject(manifest)) return ["sources.json must be a JSON object"];
+  if (!isObject(data)) return ["timeline.json must be a JSON object"];
 
-  if (typeof manifest.schemaVersion !== "number") errors.push("schemaVersion must be a number");
-  if ("$schema" in manifest && typeof manifest.$schema !== "string") {
+  if (typeof data.schemaVersion !== "number") errors.push("schemaVersion must be a number");
+  if ("$schema" in data && typeof data.$schema !== "string") {
     errors.push("$schema must be a string");
   }
 
   const records = (name: string, check: (record: Json, at: string) => void) => {
-    const list = manifest[name];
+    const list = data[name];
     if (!Array.isArray(list)) return errors.push(`${name} must be an array`);
     list.forEach((record, index) => {
       if (isObject(record)) check(record, `${name}[${index}]`);
@@ -96,74 +82,101 @@ function shapeErrors(manifest: unknown): string[] {
     if (typeof source.mode !== "string" || !SOURCE_MODES.includes(source.mode)) {
       errors.push(`${at}.mode must be one of ${SOURCE_MODES.join(", ")}`);
     } else if (source.mode !== "frozen") {
-      const start = source.reviewedStart;
-      if (!isObject(start)) errors.push(`${at}.reviewedStart must be an object`);
+      const through = source.reviewedThrough;
+      if (!isObject(through)) errors.push(`${at}.reviewedThrough must be an object`);
       else {
-        text(start, `${at}.reviewedStart`, "commit");
-        text(start, `${at}.reviewedStart`, "tag", true);
+        text(through, `${at}.reviewedThrough`, "commit");
+        text(through, `${at}.reviewedThrough`, "tag", true);
       }
     }
   });
   records("releases", (release, at) => {
-    for (const key of ["key", "source", "tag", "dateBasis"]) text(release, at, key);
+    for (const key of ["key", "tag", "date", "dateBasis"]) text(release, at, key);
     text(release, at, "commit", true);
     text(release, at, "baseline", true);
   });
-  records("lanes", (binding, at) => {
-    text(binding, at, "lane");
-    strings(binding, at, "namespaces");
-    const migration = binding.migration;
+  records("lanes", (lane, at) => {
+    for (const key of ["id", "title", "subtitle"]) text(lane, at, key);
+    strings(lane, at, "namespaces");
+    const migration = lane.migration;
     if (migration === undefined) return;
     if (!isObject(migration)) return void errors.push(`${at}.migration must be an object`);
     for (const key of ["eventId", "from", "to"]) text(migration, `${at}.migration`, key);
   });
-  records("evidence", (evidence, at) => {
-    text(evidence, at, "eventId");
-    text(evidence, at, "source");
-    text(evidence, at, "release", true);
-    strings(evidence, at, "namespaces");
-    strings(evidence, at, "links");
+  records("events", (event, at) => {
+    for (const key of ["id", "lane", "type", "short", "title", "detail", "source", "date"]) {
+      text(event, at, key);
+    }
+    if (typeof event.major !== "boolean") errors.push(`${at}.major must be a boolean`);
+    const revision = event.revision;
+    if (isObject(revision)) {
+      text(revision, `${at}.revision`, "source");
+      text(revision, `${at}.revision`, "commit");
+    } else if (!isString(revision)) {
+      errors.push(`${at}.revision must be a release key or a { source, commit } object`);
+    }
+    for (const key of ["transition", "dateBasis", "firstRelease", "lineageSource"]) {
+      text(event, at, key, true);
+    }
+    if (event.pullRequest !== undefined && typeof event.pullRequest !== "number") {
+      errors.push(`${at}.pullRequest must be a number`);
+    }
+    const evidence = event.evidence;
+    if (evidence === undefined) return;
+    if (!Array.isArray(evidence)) return void errors.push(`${at}.evidence must be an array`);
+    evidence.forEach((item, index) => {
+      const itemAt = `${at}.evidence[${index}]`;
+      if (!isObject(item)) return void errors.push(`${itemAt} must be an object`);
+      text(item, itemAt, "source");
+      strings(item, itemAt, "namespaces");
+      strings(item, itemAt, "links");
+    });
   });
   return errors;
 }
 
 /**
- * Checks that `sources.json` is consistent with the authoritative `timeline.json`. Returns
- * human-readable problems; an empty list means the pair is valid.
+ * Checks the authored `timeline.json`. Returns human-readable problems; an empty list means the
+ * file is valid.
  */
-export function validateHistory(timeline: TimelineData, manifest: HistoryManifest): string[] {
-  const shape = shapeErrors(manifest);
+export function validateHistory(input: unknown): string[] {
+  const shape = shapeErrors(input);
   if (shape.length > 0) return shape;
 
+  const data = input as TimelineData;
   const errors: string[] = [];
   const fail = (message: string) => errors.push(message);
 
-  if (manifest.schemaVersion !== HISTORY_SCHEMA_VERSION) {
-    fail(`schemaVersion must be ${HISTORY_SCHEMA_VERSION}, got ${manifest.schemaVersion}`);
+  if (data.schemaVersion !== HISTORY_SCHEMA_VERSION) {
+    fail(`schemaVersion must be ${HISTORY_SCHEMA_VERSION}, got ${data.schemaVersion}`);
   }
 
-  const sourceIds = new Set<string>();
-  for (const source of manifest.sources) {
-    if (sourceIds.has(source.id)) fail(`duplicate source id: ${source.id}`);
-    sourceIds.add(source.id);
+  const sourcesById = new Map<string, TimelineData["sources"][number]>();
+  for (const source of data.sources) {
+    if (sourcesById.has(source.id)) fail(`duplicate source id: ${source.id}`);
+    sourcesById.set(source.id, source);
     if (!isHttpsUrl(source.repository) || source.repository.endsWith("/")) {
       fail(`source ${source.id}: repository must be an https URL without a trailing slash`);
     }
     if (source.mode === "frozen") {
-      if ("reviewedStart" in source)
-        fail(`source ${source.id}: frozen sources have no reviewedStart`);
-    } else if (!source.reviewedStart || !COMMIT_SHA.test(source.reviewedStart.commit)) {
-      fail(`source ${source.id}: reviewedStart.commit must be a 40-character SHA`);
+      if ("reviewedThrough" in source) {
+        fail(`source ${source.id}: frozen sources have no reviewedThrough`);
+      }
+    } else if (!COMMIT_SHA.test(source.reviewedThrough.commit)) {
+      fail(`source ${source.id}: reviewedThrough.commit must be a 40-character SHA`);
     }
   }
 
-  const releasesByKey = new Map<string, HistoryManifest["releases"][number]>();
-  for (const release of manifest.releases) {
-    if (releasesByKey.has(release.key)) fail(`release key mapped more than once: ${release.key}`);
+  const releasesByKey = new Map<string, TimelineData["releases"][number]>();
+  const sourceOfKey = (key: string) => sourcesById.get(key.slice(0, Math.max(key.indexOf("@"), 0)));
+  for (const release of data.releases) {
+    if (releasesByKey.has(release.key)) fail(`duplicate release key: ${release.key}`);
     releasesByKey.set(release.key, release);
-    const source = manifest.sources.find((s) => s.id === release.source);
-    if (!source) fail(`release ${release.key}: unknown source ${release.source}`);
-    if (!release.tag) fail(`release ${release.key}: tag is required`);
+    const source = sourceOfKey(release.key);
+    if (!source) fail(`release ${release.key}: key must be {source}@{tag} for a known source`);
+    else if (release.key !== `${source.id}@${release.tag}`) {
+      fail(`release ${release.key}: key does not match tag ${release.tag}`);
+    }
     if (release.commit !== undefined && !COMMIT_SHA.test(release.commit)) {
       fail(`release ${release.key}: commit must be a 40-character SHA`);
     }
@@ -173,164 +186,90 @@ export function validateHistory(timeline: TimelineData, manifest: HistoryManifes
     if (!DATE_BASES.includes(release.dateBasis)) {
       fail(`release ${release.key}: unknown dateBasis ${release.dateBasis}`);
     }
-    if (release.baseline !== undefined) {
-      const baseline = manifest.releases.find((r) => r.key === release.baseline);
-      if (!baseline || baseline.source !== release.source) {
-        fail(
-          `release ${release.key}: baseline ${release.baseline} is not a release of ${release.source}`
-        );
-      }
-    }
+    if (!isIsoDate(release.date)) fail(`release ${release.key}: date ${release.date} is not ISO`);
   }
-  for (const key of Object.keys(timeline.dates)) {
-    if (!releasesByKey.has(key)) fail(`dates key ${key} has no source mapping`);
-  }
-  for (const key of releasesByKey.keys()) {
-    if (!(key in timeline.dates)) fail(`release mapping ${key} has no entry in dates`);
-  }
-
-  for (const source of manifest.sources) {
-    if (source.mode === "frozen" || !source.reviewedStart?.tag) continue;
-    const release = manifest.releases.find(
-      (r) => r.source === source.id && r.tag === source.reviewedStart.tag
-    );
-    if (!release || release.commit !== source.reviewedStart.commit) {
-      fail(`source ${source.id}: reviewedStart tag and commit do not match a mapped release`);
-    }
-  }
-
-  const laneIds = new Set(timeline.lanes.map((lane) => lane.id));
-  const eventsById = new Map(timeline.events.map((event) => [event.id, event]));
-  if (eventsById.size !== timeline.events.length) fail("timeline event IDs are not unique");
-  for (const event of timeline.events) {
-    if (!laneIds.has(event.lane)) fail(`event ${event.id}: unknown lane ${event.lane}`);
-    if (event.release !== null) {
-      if (!releasesByKey.has(event.release))
-        fail(`event ${event.id}: release ${event.release} has no mapping`);
-      if (event.date !== timeline.dates[event.release]) {
-        fail(`event ${event.id}: date ${event.date} differs from dates[${event.release}]`);
-      }
-    }
-    if (!isHttpsUrl(event.source) || !sourceForUrl(manifest.sources, event.source)) {
-      fail(`event ${event.id}: source is not an https URL inside a declared repository`);
-    }
-  }
-
-  const bound = new Set<string>();
-  for (const binding of manifest.lanes) {
-    if (!laneIds.has(binding.lane)) fail(`lane binding for unknown lane ${binding.lane}`);
-    if (bound.has(binding.lane)) fail(`lane ${binding.lane} is bound more than once`);
-    bound.add(binding.lane);
-    if (binding.namespaces.length === 0) fail(`lane ${binding.lane}: namespaces must not be empty`);
-    const migration = binding.migration;
-    if (migration) {
-      const event = eventsById.get(migration.eventId);
-      if (!event || event.lane !== binding.lane || event.type !== "moved") {
-        fail(
-          `lane ${binding.lane}: migration event ${migration.eventId} must be a moved event in the lane`
-        );
-      }
-      for (const id of [migration.from, migration.to]) {
-        if (!sourceIds.has(id))
-          fail(`lane ${binding.lane}: migration references unknown source ${id}`);
-      }
-      if (migration.from === migration.to)
-        fail(`lane ${binding.lane}: migration must change source`);
-    }
-  }
-  for (const id of laneIds) {
-    if (!bound.has(id)) fail(`lane ${id} has no binding`);
-  }
-
-  for (const evidence of manifest.evidence) {
-    const event = eventsById.get(evidence.eventId);
-    if (!event) fail(`evidence references unknown event ${evidence.eventId}`);
-    if (!sourceIds.has(evidence.source))
-      fail(`evidence for ${evidence.eventId}: unknown source ${evidence.source}`);
-    if (evidence.release !== undefined && event && evidence.release !== event.release) {
+  for (const release of data.releases) {
+    if (release.baseline === undefined) continue;
+    const baseline = releasesByKey.get(release.baseline);
+    if (!baseline || sourceOfKey(baseline.key) !== sourceOfKey(release.key)) {
       fail(
-        `evidence for ${evidence.eventId}: release ${evidence.release} differs from the event's`
+        `release ${release.key}: baseline ${release.baseline} is not a release of the same source`
       );
     }
-    for (const link of evidence.links) {
-      if (!isHttpsUrl(link) || !sourceForUrl(manifest.sources, link)) {
-        fail(
-          `evidence for ${evidence.eventId}: ${link} is not an https URL inside a declared repository`
-        );
+  }
+  for (const source of data.sources) {
+    if (source.mode === "frozen" || !source.reviewedThrough.tag) continue;
+    const release = releasesByKey.get(`${source.id}@${source.reviewedThrough.tag}`);
+    if (!release || release.commit !== source.reviewedThrough.commit) {
+      fail(`source ${source.id}: reviewedThrough tag and commit do not match a release`);
+    }
+  }
+
+  const lanesById = new Map<string, TimelineData["lanes"][number]>();
+  for (const lane of data.lanes) {
+    if (lanesById.has(lane.id)) fail(`duplicate lane id: ${lane.id}`);
+    lanesById.set(lane.id, lane);
+    if (lane.namespaces.length === 0) fail(`lane ${lane.id}: namespaces must not be empty`);
+  }
+
+  const eventsById = new Map<string, TimelineData["events"][number]>();
+  for (const event of data.events) {
+    if (eventsById.has(event.id)) fail(`duplicate event id: ${event.id}`);
+    eventsById.set(event.id, event);
+    if (!lanesById.has(event.lane)) fail(`event ${event.id}: unknown lane ${event.lane}`);
+    if (!isIsoDate(event.date)) fail(`event ${event.id}: date ${event.date} is not ISO`);
+    if (!isHttpsUrl(event.source)) fail(`event ${event.id}: source must be an https URL`);
+
+    const revision = event.revision;
+    if (typeof revision === "string") {
+      const release = releasesByKey.get(revision);
+      if (!release) fail(`event ${event.id}: unknown release ${revision}`);
+      else if (event.date !== release.date) {
+        fail(`event ${event.id}: date ${event.date} differs from ${revision} (${release.date})`);
+      }
+    } else {
+      if (!sourcesById.has(revision.source)) {
+        fail(`event ${event.id}: revision references unknown source ${revision.source}`);
+      }
+      if (!COMMIT_SHA.test(revision.commit)) {
+        fail(`event ${event.id}: revision commit must be a 40-character SHA`);
       }
     }
+
+    for (const evidence of event.evidence ?? []) {
+      const source = sourcesById.get(evidence.source);
+      if (!source) fail(`evidence for ${event.id}: unknown source ${evidence.source}`);
+      for (const link of evidence.links) {
+        if (!isHttpsUrl(link) || (source && !link.startsWith(`${source.repository}/`))) {
+          fail(`evidence for ${event.id}: ${link} is not an https URL inside ${evidence.source}`);
+        }
+      }
+    }
+  }
+
+  for (const lane of data.lanes) {
+    const migration = lane.migration;
+    if (!migration) continue;
+    const event = eventsById.get(migration.eventId);
+    if (!event || event.lane !== lane.id || event.type !== "moved") {
+      fail(
+        `lane ${lane.id}: migration event ${migration.eventId} must be a moved event in the lane`
+      );
+    }
+    for (const id of [migration.from, migration.to]) {
+      if (!sourcesById.has(id)) fail(`lane ${lane.id}: migration references unknown source ${id}`);
+    }
+    if (migration.from === migration.to) fail(`lane ${lane.id}: migration must change source`);
   }
 
   return errors;
 }
 
-/**
- * Builds the accepted-history view from `timeline.json` and `sources.json`. Event fields are
- * copied unchanged; source identity and evidence are added alongside. Everything in
- * `sources.json` is accepted history. Output order is fixed: releases by version, events by date then ID.
- */
-export function projectAcceptedHistory(
-  timeline: TimelineData,
-  manifest: HistoryManifest
-): AcceptedHistory {
-  const errors = validateHistory(timeline, manifest);
+/** Returns the authored data, or throws listing every problem. */
+export function assertValidHistory(input: unknown): TimelineData {
+  const errors = validateHistory(input);
   if (errors.length > 0) {
     throw new Error(`Invalid semantic-convention history:\n- ${errors.join("\n- ")}`);
   }
-
-  const releaseKey = (legacyKey: string) => {
-    const release = manifest.releases.find((r) => r.key === legacyKey)!;
-    return `${release.source}@${release.tag}`;
-  };
-
-  const eventFor = (event: TimelineData["events"][number]): AcceptedHistoryEvent => ({
-    ...event,
-    sourceId: sourceForUrl(manifest.sources, event.source)!.id,
-    releaseKey: event.release === null ? null : releaseKey(event.release),
-    evidence: manifest.evidence
-      .filter((e) => e.eventId === event.id)
-      .map((e) => ({
-        source: e.source,
-        releaseKey: e.release === undefined ? null : releaseKey(e.release),
-        namespaces: [...e.namespaces].sort(byString),
-        links: [...e.links].sort(byString),
-      })),
-  });
-
-  return {
-    schemaVersion: manifest.schemaVersion,
-    sources: [...manifest.sources]
-      .sort((a, b) => byString(a.id, b.id))
-      .map((source) => ({
-        id: source.id,
-        repository: source.repository,
-        mode: source.mode,
-        paths: [...source.paths].sort(byString),
-        ...(source.mode === "frozen" ? {} : { reviewedStart: source.reviewedStart }),
-      })),
-    releases: [...manifest.releases]
-      .sort((a, b) => byString(a.source, b.source) || compareVersions(a.key, b.key))
-      .map((release) => ({
-        key: releaseKey(release.key),
-        legacyKey: release.key,
-        source: release.source,
-        tag: release.tag,
-        ...(release.commit === undefined ? {} : { commit: release.commit }),
-        ...(release.baseline === undefined ? {} : { baseline: releaseKey(release.baseline) }),
-        date: timeline.dates[release.key],
-        dateBasis: release.dateBasis,
-      })),
-    lanes: timeline.lanes.map((lane) => {
-      const binding = manifest.lanes.find((b) => b.lane === lane.id)!;
-      return {
-        ...lane,
-        namespaces: [...binding.namespaces].sort(byString),
-        ...(binding.migration ? { migration: binding.migration } : {}),
-        events: timeline.events
-          .filter((event) => event.lane === lane.id)
-          .sort((a, b) => byString(a.date, b.date) || byString(a.id, b.id))
-          .map(eventFor),
-      };
-    }),
-  };
+  return input as TimelineData;
 }

@@ -25,19 +25,16 @@ import {
   buildSemanticConventionsIndex,
   writeSemanticConventionsHistory,
 } from "./generate-agent-docs.mjs";
-import { projectAcceptedHistory } from "../src/features/semantic-conventions/history/accepted-history";
-import type { HistoryManifest, TimelineData } from "../src/features/semantic-conventions/types";
+import type { TimelineData } from "../src/features/semantic-conventions/types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const publicDir = resolve(__dirname, "../public");
 const dataDir = resolve(publicDir, "data/semantic-conventions");
 const readJson = (p: string) => JSON.parse(readFileSync(p, "utf-8"));
 let timeline: TimelineData;
-let manifest: HistoryManifest;
 
 beforeAll(() => {
   timeline = readJson(resolve(dataDir, "timeline.json"));
-  manifest = readJson(resolve(dataDir, "sources.json"));
 });
 
 async function generate() {
@@ -47,35 +44,31 @@ async function generate() {
 }
 
 describe("agent docs: semantic-convention history", () => {
-  it("publishes exactly the shared accepted-history projection", async () => {
+  it("publishes the same authored records the timeline UI reads", async () => {
     const { outDir } = await generate();
     try {
       const published = readJson(
         resolve(outDir, "data/semantic-conventions/accepted-history.json")
       );
-      expect(published).toEqual(
-        JSON.parse(JSON.stringify(projectAcceptedHistory(timeline, manifest)))
-      );
+      expect(published).toEqual(timeline);
     } finally {
       rmSync(outDir, { recursive: true, force: true });
     }
   });
 
-  it("includes every timeline event, including hidden detail events, with its ID and date", async () => {
+  it("lists every timeline event, including hidden detail events, on its lane page", async () => {
     const { outDir } = await generate();
     try {
-      const published = readJson(
-        resolve(outDir, "data/semantic-conventions/accepted-history.json")
-      );
-      const events = published.lanes.flatMap(
-        (lane: { events: { id: string; date: string }[] }) => lane.events
-      );
-      expect(events.map((e: { id: string }) => e.id).sort()).toEqual(
-        timeline.events.map((e) => e.id).sort()
-      );
       expect(timeline.events.some((e) => !e.major)).toBe(true);
-      for (const original of timeline.events) {
-        expect(events.find((e: { id: string }) => e.id === original.id).date).toBe(original.date);
+      for (const lane of timeline.lanes) {
+        const page = readFileSync(
+          resolve(outDir, `agent/semantic-conventions/${lane.id}.md`),
+          "utf-8"
+        );
+        for (const event of timeline.events.filter((e) => e.lane === lane.id)) {
+          expect(page).toContain(`\`${event.id}\``);
+          expect(page).toContain(event.date);
+        }
       }
     } finally {
       rmSync(outDir, { recursive: true, force: true });
@@ -118,37 +111,47 @@ describe("agent docs: semantic-convention history", () => {
     }
   });
 
-  it("renders source-qualified releases, evidence and the migration, in date order", () => {
-    const history = projectAcceptedHistory(timeline, manifest);
-    const genai = history.lanes.find((lane) => lane.id === "genai")!;
-    const page = buildSemanticConventionsDomainPage(genai);
+  it("renders source-qualified revisions, evidence and the migration, in date order", () => {
+    const genai = timeline.lanes.find((lane) => lane.id === "genai")!;
+    const page = buildSemanticConventionsDomainPage(timeline, genai);
     expect(page).toContain("moved from `semantic-conventions` to `semantic-conventions-genai`");
     expect(page).toContain("semantic-conventions@v1.42.0");
     expect(page).toContain("/commit/ebe3d1fb9fdda3398099e11ef91c4c490912f88d");
     const dates = [...page.matchAll(/^\| (\d{4}-\d\d-\d\d) \|/gm)].map((m) => m[1]);
     expect(dates).toEqual([...dates].sort());
-    expect(buildSemanticConventionsIndex(history)).toContain("never listed here");
+    const spec = buildSemanticConventionsDomainPage(
+      timeline,
+      timeline.lanes.find((lane) => lane.id === "http")!
+    );
+    expect(spec).toContain("opentelemetry-specification@4ac49aa1e86633887f49ab1f58221b78b4888e24");
+    expect(buildSemanticConventionsIndex(timeline)).toContain("never listed here");
   });
 
-  it("refuses to publish when the sidecar is invalid", async () => {
-    const outDir = mkdtempSync(resolve(tmpdir(), "agent-docs-semconv-bad-"));
+  async function publishCopy(authored: unknown) {
+    const outDir = mkdtempSync(resolve(tmpdir(), "agent-docs-semconv-out-"));
     const publicCopy = mkdtempSync(resolve(tmpdir(), "agent-docs-semconv-public-"));
+    mkdirSync(resolve(publicCopy, "data/semantic-conventions"), { recursive: true });
+    writeFileSync(
+      resolve(publicCopy, "data/semantic-conventions/timeline.json"),
+      JSON.stringify(authored)
+    );
     try {
-      mkdirSync(resolve(publicCopy, "data/semantic-conventions"), { recursive: true });
-      writeFileSync(
-        resolve(publicCopy, "data/semantic-conventions/timeline.json"),
-        JSON.stringify(timeline)
-      );
-      writeFileSync(
-        resolve(publicCopy, "data/semantic-conventions/sources.json"),
-        JSON.stringify({ ...manifest, schemaVersion: 99 })
-      );
-      await expect(writeSemanticConventionsHistory(publicCopy, outDir)).rejects.toThrow(
-        /schemaVersion/
-      );
+      return await writeSemanticConventionsHistory(publicCopy, outDir);
     } finally {
       rmSync(outDir, { recursive: true, force: true });
       rmSync(publicCopy, { recursive: true, force: true });
     }
+  }
+
+  it("needs only timeline.json, with no sidecar", async () => {
+    const result = await publishCopy(timeline);
+    expect(result.pages).toHaveLength(timeline.lanes.length + 1);
+  });
+
+  it("refuses to publish an invalid or malformed history", async () => {
+    await expect(publishCopy({ ...timeline, schemaVersion: 99 })).rejects.toThrow(/schemaVersion/);
+    const malformed = structuredClone(timeline) as unknown as { lanes: Record<string, unknown>[] };
+    delete malformed.lanes[0].namespaces;
+    await expect(publishCopy(malformed)).rejects.toThrow(/lanes\[0\]\.namespaces/);
   });
 });

@@ -105,14 +105,8 @@ async function main() {
 
     await generateSchema(
       "src/features/semantic-conventions/types.ts",
-      "AcceptedHistory",
+      "TimelineData",
       "semantic-conventions-history.schema.json"
-    );
-
-    await generateSchema(
-      "src/features/semantic-conventions/types.ts",
-      "HistoryManifest",
-      "semantic-conventions-sources.schema.json"
     );
 
     console.log("\n✓ JSON Schemas generated successfully.");

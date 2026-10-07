@@ -85,7 +85,10 @@ export function formatMonthYear(iso: string, locale: string): string {
 }
 
 export function eventReference(event: TimelineEvent): string {
-  return event.release ? `v${event.release}` : `spec PR #${event.pullRequest}`;
+  const { revision } = event;
+  // A release key is `{source}@{tag}`; the label is the tag.
+  if (typeof revision === "string") return revision.slice(revision.indexOf("@") + 1);
+  return event.pullRequest ? `spec PR #${event.pullRequest}` : revision.commit.slice(0, 7);
 }
 
 /** UTC year/month difference formatted like "1y 4m", or "<1m" for anything under a month. */

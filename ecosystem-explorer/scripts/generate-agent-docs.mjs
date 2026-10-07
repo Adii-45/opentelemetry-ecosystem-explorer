@@ -18,7 +18,10 @@ import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { STATIC_ROUTE_META } from "../src/lib/seo/derive.ts";
-import { projectAcceptedHistory } from "../src/features/semantic-conventions/history/accepted-history.ts";
+import {
+  assertValidHistory,
+  revisionKey,
+} from "../src/features/semantic-conventions/history/accepted-history.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -858,12 +861,19 @@ function semconvCoverage(source) {
   if (source.mode === "frozen") {
     return "Frozen legacy source: referenced by historical events, not monitored.";
   }
-  const start = source.reviewedStart;
+  const start = source.reviewedThrough;
   const label = start.tag ? `\`${start.tag}\` (\`${start.commit}\`)` : `commit \`${start.commit}\``;
   return `Accepted history is reviewed through ${label}; later changes are not covered.`;
 }
 
-/** Builds `/agent/semantic-conventions/index.md` from the accepted-history projection. */
+/** A lane's events in a fixed order: by date, then ID. */
+function laneEvents(history, lane) {
+  return history.events
+    .filter((event) => event.lane === lane.id)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+}
+
+/** Builds `/agent/semantic-conventions/index.md` from the authored history. */
 export function buildSemanticConventionsIndex(history) {
   let md = `> For the complete documentation index, see [llms.txt](/llms.txt)\n\n# Semantic Convention History\n\n<!-- llms-txt-link: /llms.txt -->\n\nAccepted, maintainer-reviewed milestones in the history of OpenTelemetry semantic conventions. Candidates that have not been reviewed are never listed here.\n\n**JSON Schema**: [semantic-conventions-history.schema.json](/schemas/semantic-conventions-history.schema.json)\n\n**Machine-readable**: [/data/semantic-conventions/accepted-history.json](/data/semantic-conventions/accepted-history.json)\n\nRelease keys are source-qualified (\`{source}@{tag}\`) because two repositories can publish the same tag.\n\n## Sources\n\n| Source | Repository | Mode | Coverage |\n| --- | --- | --- | --- |\n`;
   for (const source of history.sources) {
@@ -871,13 +881,14 @@ export function buildSemanticConventionsIndex(history) {
   }
   md += `\n## Domains\n\n| Domain | Namespaces | Events | Page |\n| --- | --- | --- | --- |\n`;
   for (const lane of history.lanes) {
-    md += `| ${escapeCell(lane.title)} | ${escapeCell(lane.namespaces.join(", "))} | ${lane.events.length} | [/agent/semantic-conventions/${lane.id}.md](/agent/semantic-conventions/${lane.id}.md) |\n`;
+    md += `| ${escapeCell(lane.title)} | ${escapeCell(lane.namespaces.join(", "))} | ${laneEvents(history, lane).length} | [/agent/semantic-conventions/${lane.id}.md](/agent/semantic-conventions/${lane.id}.md) |\n`;
   }
   return md;
 }
 
 /** Builds `/agent/semantic-conventions/{lane}.md` for one domain. */
-export function buildSemanticConventionsDomainPage(lane) {
+export function buildSemanticConventionsDomainPage(history, lane) {
+  const events = laneEvents(history, lane);
   const lines = [
     "> For the complete documentation index, see [llms.txt](/llms.txt)",
     "",
@@ -902,15 +913,15 @@ export function buildSemanticConventionsDomainPage(lane) {
     "| Date | Release | Type | Event ID | Title | Source |",
     "| --- | --- | --- | --- | --- | --- |"
   );
-  for (const event of lane.events) {
+  for (const event of events) {
     lines.push(
-      `| ${event.date} | ${escapeCell(event.releaseKey ?? "pre-release")} | ${event.type} | \`${event.id}\` | ${escapeCell(event.title)} | [${escapeCell(event.sourceId)}](${event.source}) |`
+      `| ${event.date} | ${escapeCell(revisionKey(event.revision))} | ${event.type} | \`${event.id}\` | ${escapeCell(event.title)} | [link](${event.source}) |`
     );
   }
-  for (const event of lane.events) {
+  for (const event of events) {
     lines.push("", `### ${event.id}`, "", event.detail);
     if (event.transition) lines.push("", `Transition: ${event.transition}`);
-    for (const evidence of event.evidence) {
+    for (const evidence of event.evidence ?? []) {
       lines.push(
         "",
         `Evidence (${evidence.source}): ${evidence.links.map((l) => `<${l}>`).join(", ")}`
@@ -921,14 +932,14 @@ export function buildSemanticConventionsDomainPage(lane) {
 }
 
 /**
- * Projects the accepted semantic-convention history and writes its machine-readable record and
+ * Validates the authored semantic-convention history and writes its machine-readable record and
  * Markdown pages. Returns the `{ label, pageUrl }` listing for llms.txt plus the index Markdown.
  */
 export async function writeSemanticConventionsHistory(publicPath, outDir = distDir) {
   const dataDir = path.join(publicPath, "data/semantic-conventions");
-  const timeline = JSON.parse(await fs.readFile(path.join(dataDir, "timeline.json"), "utf-8"));
-  const manifest = JSON.parse(await fs.readFile(path.join(dataDir, "sources.json"), "utf-8"));
-  const history = projectAcceptedHistory(timeline, manifest);
+  const history = assertValidHistory(
+    JSON.parse(await fs.readFile(path.join(dataDir, "timeline.json"), "utf-8"))
+  );
 
   const jsonDir = path.join(outDir, "data/semantic-conventions");
   const mdDir = path.join(outDir, "agent/semantic-conventions");
@@ -945,7 +956,10 @@ export async function writeSemanticConventionsHistory(publicPath, outDir = distD
     { label: "Semantic Convention History", pageUrl: "/agent/semantic-conventions/index.md" },
   ];
   for (const lane of history.lanes) {
-    await fs.writeFile(path.join(mdDir, `${lane.id}.md`), buildSemanticConventionsDomainPage(lane));
+    await fs.writeFile(
+      path.join(mdDir, `${lane.id}.md`),
+      buildSemanticConventionsDomainPage(history, lane)
+    );
     pages.push({ label: lane.title, pageUrl: `/agent/semantic-conventions/${lane.id}.md` });
   }
   return { pages, indexMd };
