@@ -2,7 +2,7 @@ distribution: contrib
 version: 0.162.1-SNAPSHOT
 repository: opentelemetry-collector-contrib
 component_type: receiver
-schema_hash: 78c51a7415b2
+schema_hash: 5fc3596bf444
 components:
 - name: activedirectorydsreceiver
   metadata:
@@ -1953,9 +1953,10 @@ components:
       class: receiver
       codeowners:
         active:
-        - eedorenko
         - mx-psi
         - dyl10s
+        emeritus:
+        - eedorenko
       distributions:
       - contrib
       stability:
@@ -5778,6 +5779,7 @@ components:
         - constanca-m
         emeritus:
         - axw
+        seeking_new: true
       distributions:
       - contrib
       stability:
@@ -10538,6 +10540,16 @@ components:
         name_override: type
         requirement_level: recommended
         type: string
+      mongodb.assert.type:
+        description: The type of assertion raised by the server.
+        enum:
+        - msg
+        - regular
+        - tripwire
+        - user
+        - warning
+        requirement_level: recommended
+        type: string
       mongodb.client.app.name:
         description: The identifier of the client application which ran the operation,
           as set by the driver's `appName` connection option.
@@ -10570,6 +10582,13 @@ components:
         type: string
       mongodb.explain_plan.text:
         description: The obfuscated query explain plan, if collection is enabled.
+        type: string
+      mongodb.global_lock.queue.type:
+        description: The type of operation waiting for the global lock.
+        enum:
+        - read
+        - write
+        requirement_level: recommended
         type: string
       mongodb.lsid.id:
         description: The UUID portion of the logical session identifier associated
@@ -10806,6 +10825,17 @@ components:
           monotonic: false
           value_type: int
         unit: '{writes}'
+      mongodb.assert.count:
+        attributes:
+        - mongodb.assert.type
+        description: The number of assertions raised since the server process started.
+        enabled: false
+        stability: development
+        sum:
+          aggregation_temporality: cumulative
+          monotonic: true
+          value_type: int
+        unit: '{assert}'
       mongodb.cache.operations:
         attributes:
         - type
@@ -10941,6 +10971,17 @@ components:
           value_type: double
         stability: development
         unit: '{getmore}/s'
+      mongodb.global_lock.queue.count:
+        attributes:
+        - mongodb.global_lock.queue.type
+        description: The number of operations queued waiting for the global lock.
+        enabled: false
+        stability: development
+        sum:
+          aggregation_temporality: cumulative
+          monotonic: false
+          value_type: int
+        unit: '{operation}'
       mongodb.global_lock.time:
         attributes: []
         description: The time the global lock has been held.
@@ -11201,6 +11242,33 @@ components:
           value_type: double
         stability: development
         unit: '{query}/s'
+      mongodb.query_executor.collection_scan.count:
+        description: The number of queries that performed a collection scan.
+        enabled: false
+        stability: development
+        sum:
+          aggregation_temporality: cumulative
+          monotonic: true
+          value_type: int
+        unit: '{query}'
+      mongodb.query_executor.document.scanned.count:
+        description: The number of documents scanned by the query executor.
+        enabled: false
+        stability: development
+        sum:
+          aggregation_temporality: cumulative
+          monotonic: true
+          value_type: int
+        unit: '{document}'
+      mongodb.query_executor.index_key.scanned.count:
+        description: The number of index keys scanned by the query executor.
+        enabled: false
+        stability: development
+        sum:
+          aggregation_temporality: cumulative
+          monotonic: true
+          value_type: int
+        unit: '{index_key}'
       mongodb.repl_commands_per_sec:
         description: The number of replicated commands executed per second.
         enabled: false
@@ -11342,6 +11410,28 @@ components:
           monotonic: true
           value_type: int
         unit: ms
+      mongodb.write_concern.wait.time:
+        attributes: []
+        description: The cumulative time spent waiting for write concern acknowledgement.
+        enabled: false
+        extended_documentation: 'Increments for write operations that specify a write
+          concern greater than w:1, which includes
+
+          the w:"majority" default applied to replica sets since MongoDB 5.0. Accumulates
+          under an
+
+          ordinary replica set workload and stays at zero on a standalone deployment
+          and for writes that
+
+          specify w:1.
+
+          '
+        stability: development
+        sum:
+          aggregation_temporality: cumulative
+          monotonic: true
+          value_type: double
+        unit: s
       mongodb.wt.concurrent_transaction.ticket.in_use:
         attributes:
         - mongodb.wt.concurrent_transaction.ticket.type
@@ -11414,16 +11504,20 @@ components:
         enabled: false
         type: string
       server.address:
-        description: The address of the MongoDB host.
+        description: The address of the monitored MongoDB instance. A loopback address
+          (for example localhost or 127.0.0.1) is reported as the host name of the
+          machine running the collector, since the instance is co-located with it.
         enabled: true
         type: string
       server.port:
-        description: The port of the MongoDB host.
-        enabled: false
+        description: The port of the monitored MongoDB instance, defaulting to 27017
+          when the instance does not report one.
+        enabled: true
         type: int
       service.instance.id:
-        description: A unique identifier of the MongoDB resource as a UUID v5, derived
-          from server address and port.
+        description: A unique identifier of the MongoDB instance as a UUID v5, derived
+          from the address and port using the OTel namespace. The address is resolved
+          the same way as server.address.
         enabled: true
         type: string
       service.name:
@@ -11546,7 +11640,8 @@ components:
         requirement_level: recommended
         type: string
       db.namespace:
-        description: The database the statement ran in, or empty if none is known.
+        description: The name of the database the statement was executed against,
+          or empty if not available.
         type: string
       db.query.text:
         description: The SQL statement text for the event.
@@ -11691,6 +11786,14 @@ components:
         description: The statement digest SHA-256 value as a string of 64 hexadecimal
           characters, or empty if the statements_digest consumer is no.
         type: string
+      mysql.events_statements_summary_by_digest.examined_rows:
+        description: The number of rows examined by the statement, reported as a delta
+          value.
+        type: int
+      mysql.events_statements_summary_by_digest.returned_rows:
+        description: The number of rows returned by the statement, reported as a delta
+          value.
+        type: int
       mysql.events_statements_summary_by_digest.sum_timer_wait:
         description: The total time spent executing the statement, report in delta
           seconds.
@@ -11940,6 +12043,8 @@ components:
         - db.system.name
         - mysql.events_statements_summary_by_digest.count_star
         - mysql.events_statements_summary_by_digest.digest
+        - mysql.events_statements_summary_by_digest.examined_rows
+        - mysql.events_statements_summary_by_digest.returned_rows
         - mysql.events_statements_summary_by_digest.sum_timer_wait
         - mysql.query_plan
         - mysql.query_plan.hash
@@ -19141,9 +19246,11 @@ components:
       class: receiver
       codeowners:
         active:
-        - tamir-michaeli
+        - ajimenez1503
+        - svencowart
         emeritus:
         - StefanKurek
+        - tamir-michaeli
       distributions:
       - contrib
       stability:
@@ -20977,8 +21084,8 @@ components:
         requirement_level: recommended
         type: string
       sqlserver.session.duration:
-        description: Total elapsed time in seconds the session has been actively executing
-          requests.
+        description: Total elapsed time in seconds since the session was established
+          (login time).
         requirement_level: recommended
         type: double
       sqlserver.session.start_time:
@@ -21133,7 +21240,8 @@ components:
         - waiting_for_cpu
         requirement_level: recommended
         type: string
-    description: The `sqlserver` receiver grabs metrics/logs about a Microsoft SQL
+    deprecated_type: sqlserver
+    description: The `sql_server` receiver grabs metrics/logs about a Microsoft SQL
       Server instance. The receiver works by either using the Windows Performance
       Counters, or by directly connecting to the instance and querying it. Windows
       Performance Counters are only available when running on Windows.
@@ -22363,7 +22471,7 @@ components:
         - metrics
         development:
         - logs
-    type: sqlserver
+    type: sql_server
 - name: sshcheckreceiver
   metadata:
     attributes:
@@ -22691,6 +22799,7 @@ components:
         - atoulme
         - michael-burt
         - chengchuanpeng
+        emeritus:
         - yanfeng1992
       distributions:
       - contrib
