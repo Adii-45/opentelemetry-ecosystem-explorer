@@ -18,6 +18,7 @@ import {
   EVENT_DATE_BASES,
   HISTORY_SCHEMA_VERSION,
   RELEASE_DATE_BASES,
+  TIMELINE_EVENT_TYPES,
   type EventRevision,
   type TimelineData,
 } from "../types";
@@ -230,6 +231,9 @@ export function validateHistory(input: unknown): string[] {
     if (eventsById.has(event.id)) fail(`duplicate event id: ${event.id}`);
     eventsById.set(event.id, event);
     if (!lanesById.has(event.lane)) fail(`event ${event.id}: unknown lane ${event.lane}`);
+    if (!(TIMELINE_EVENT_TYPES as readonly string[]).includes(event.type)) {
+      fail(`event ${event.id}: unknown type ${event.type}`);
+    }
     if (!isIsoDate(event.date)) fail(`event ${event.id}: date ${event.date} is not ISO`);
     if (!isHttpsUrl(event.source)) fail(`event ${event.id}: source must be an https URL`);
 

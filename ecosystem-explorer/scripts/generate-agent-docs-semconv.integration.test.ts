@@ -154,5 +154,8 @@ describe("agent docs: semantic-convention history", () => {
     const malformed = structuredClone(timeline) as unknown as { lanes: Record<string, unknown>[] };
     delete malformed.lanes[0].namespaces;
     await expect(publishCopy(malformed)).rejects.toThrow(/lanes\[0\]\.namespaces/);
+    const misspelled = structuredClone(timeline);
+    (misspelled.events[0] as { type: string }).type = "stablity";
+    await expect(publishCopy(misspelled)).rejects.toThrow(/unknown type stablity/);
   });
 });

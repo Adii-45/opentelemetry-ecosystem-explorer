@@ -14,8 +14,16 @@
  * limitations under the License.
  */
 
-export type TimelineEventType =
-  "domain" | "baseline" | "stability" | "change" | "deprecation" | "removed" | "moved";
+export const TIMELINE_EVENT_TYPES = [
+  "domain",
+  "baseline",
+  "stability",
+  "change",
+  "deprecation",
+  "removed",
+  "moved",
+] as const;
+export type TimelineEventType = (typeof TIMELINE_EVENT_TYPES)[number];
 
 /*
  * `timeline.json` is the single hand-authored record of accepted semantic-convention history.

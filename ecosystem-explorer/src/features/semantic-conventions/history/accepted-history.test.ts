@@ -18,7 +18,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
-import type { TimelineData } from "../types";
+import { TIMELINE_EVENT_TYPES, type TimelineData } from "../types";
 import { assertValidHistory, revisionKey, validateHistory } from "./accepted-history";
 
 const timelinePath = resolve(
@@ -236,6 +236,28 @@ describe("validateHistory references", () => {
     const withRelease = (d: TimelineData) => d.events.find((e) => typeof e.revision === "string")!;
     expect(problems((d) => (withRelease(d).date = "1999-01-01"))).toContain("differs from");
     expect(problems((d) => (d.events[0].date = "2023-02-30"))).toContain("is not ISO");
+  });
+
+  it("accepts every supported event type and rejects any other", () => {
+    for (const type of TIMELINE_EVENT_TYPES) {
+      expect(problems((d) => (d.events[0].type = type))).toBe("");
+    }
+    // "stability" is supported; the typo is not.
+    expect(problems((d) => (d.events[0].type = "stablity" as never))).toContain(
+      `event ${data.events[0].id}: unknown type stablity`
+    );
+  });
+
+  it("agrees with the generated schema on supported event types", () => {
+    const schema = JSON.parse(
+      readFileSync(
+        resolve(dirname(timelinePath), "../../schemas/semantic-conventions-history.schema.json"),
+        "utf8"
+      )
+    );
+    expect([...schema.properties.events.items.properties.type.enum].sort()).toEqual(
+      [...TIMELINE_EVENT_TYPES].sort()
+    );
   });
 
   it("rejects an unknown lane and a non-https source", () => {
