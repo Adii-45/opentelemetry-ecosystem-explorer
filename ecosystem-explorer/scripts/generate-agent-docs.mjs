@@ -548,9 +548,10 @@ export function buildJavaInstrumentationPage(instr, jsonUrl, latestJsonUrl) {
  * agent indexes — so agents fetching `/collector.md` etc. get real content.
  */
 export function buildStaticRoutePage(title, description, pathname = "") {
-  const semconvLink = pathname.startsWith("/semantic-conventions")
-    ? "- [Semantic convention history](/agent/semantic-conventions/index.md)\n"
-    : "";
+  const semconvLink =
+    pathname === "/semantic-conventions" || pathname.startsWith("/semantic-conventions/")
+      ? "- [Semantic convention history](/agent/semantic-conventions/index.md)\n"
+      : "";
   return `# ${title}
 
 <!-- llms-txt-link: /llms.txt -->
@@ -910,7 +911,7 @@ export function buildSemanticConventionsDomainPage(history, lane) {
     "",
     "## Events",
     "",
-    "| Date | Release | Type | Event ID | Title | Source |",
+    "| Date | Revision | Type | Event ID | Title | Source |",
     "| --- | --- | --- | --- | --- | --- |"
   );
   for (const event of events) {

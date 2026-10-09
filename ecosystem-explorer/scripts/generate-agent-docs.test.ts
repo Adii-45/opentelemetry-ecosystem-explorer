@@ -235,6 +235,12 @@ describe("agent docs: static route pages", () => {
     }
   });
 
+  it("matches only the exact route or its children, not a similarly prefixed path", () => {
+    for (const route of ["/semantic-conventions-foo", "/semantic-conventionsx"]) {
+      expect(buildStaticRoutePage("Title", "Description", route)).not.toContain(semconv);
+    }
+  });
+
   it("leaves other routes' links unchanged", () => {
     const page = buildStaticRoutePage("Title", "Description", "/collector");
     expect(page).not.toContain(semconv);

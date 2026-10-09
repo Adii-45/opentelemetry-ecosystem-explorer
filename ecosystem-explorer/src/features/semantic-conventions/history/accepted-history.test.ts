@@ -205,6 +205,33 @@ describe("validateHistory references", () => {
     ).toContain("revision commit must be a 40-character SHA");
   });
 
+  it("validates event and release dateBasis against the supported values", () => {
+    const withCommit = (d: TimelineData) => draftEvent(d, "http-origin");
+    expect(problems((d) => (d.releases[0].dateBasis = "made-up" as never))).toContain(
+      "unknown dateBasis made-up"
+    );
+    expect(problems((d) => (withCommit(d).dateBasis = "made-up" as never))).toContain(
+      "event http-origin: unknown dateBasis made-up"
+    );
+    expect(problems((d) => delete withCommit(d).dateBasis)).toContain(
+      "event http-origin: a commit revision requires a dateBasis"
+    );
+    expect(
+      problems((d) => {
+        draftEvent(d, "process-rc").dateBasis = "commit-date";
+      })
+    ).toContain("event process-rc: a release revision takes its date basis from the release");
+  });
+
+  it("accepts a commit-date basis for a commit revision of a source without releases", () => {
+    const text = problems((d) => {
+      const event = draftEvent(d, "http-origin");
+      event.revision = { source: "semantic-conventions-genai", commit: "a".repeat(40) };
+      event.dateBasis = "commit-date";
+    });
+    expect(text).toBe("");
+  });
+
   it("rejects an event date that differs from its release, and invalid dates", () => {
     const withRelease = (d: TimelineData) => d.events.find((e) => typeof e.revision === "string")!;
     expect(problems((d) => (withRelease(d).date = "1999-01-01"))).toContain("differs from");
@@ -230,6 +257,27 @@ describe("validateHistory references", () => {
         (d) => (d.lanes.find((l) => l.id === "genai")!.migration!.eventId = "genai-introduced")
       )
     ).toContain("must be a moved event");
+  });
+
+  it("rejects a namespace claimed by two lanes", () => {
+    expect(
+      problems((d) => {
+        d.lanes[1].namespaces = [...d.lanes[1].namespaces, d.lanes[0].namespaces[0]];
+      })
+    ).toContain(`namespace ${data.lanes[0].namespaces[0]} is claimed by lanes ${data.lanes[0].id}`);
+  });
+
+  it("requires evidence namespaces to belong to the event's lane", () => {
+    expect(
+      problems((d) => {
+        draftEvent(d, "process-rc").evidence![0].namespaces = ["process", "k8s"];
+      })
+    ).toContain("evidence for process-rc: namespace k8s is not in lane runtime");
+    expect(
+      problems((d) => {
+        draftEvent(d, "process-rc").evidence![0].namespaces = ["process"];
+      })
+    ).toBe("");
   });
 
   it("requires lane namespaces to be non-empty", () => {

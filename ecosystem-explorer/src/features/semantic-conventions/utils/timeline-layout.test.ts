@@ -80,9 +80,14 @@ describe("eventReference", () => {
     expect(eventReference(makeEvent({ revision, pullRequest: 82 }))).toBe("spec PR #82");
   });
 
-  it("labels a commit of a source without releases by its short SHA", () => {
+  it("labels a commit without a pull request by its short SHA", () => {
     const revision = { source: "semantic-conventions-genai", commit };
     expect(eventReference(makeEvent({ revision }))).toBe("4ac49aa");
+  });
+
+  it("does not call another source's pull request a spec PR", () => {
+    const revision = { source: "semantic-conventions-genai", commit };
+    expect(eventReference(makeEvent({ revision, pullRequest: 123 }))).toBe("4ac49aa");
   });
 });
 

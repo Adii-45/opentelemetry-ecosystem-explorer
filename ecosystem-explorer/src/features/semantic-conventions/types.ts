@@ -61,7 +61,19 @@ export type HistorySource =
     });
 
 /** How a release date was established; mirrors the bases documented in the data README. */
-export type ReleaseDateBasis = "changelog-heading" | "release-published-at";
+export const RELEASE_DATE_BASES = ["changelog-heading", "release-published-at"] as const;
+export type ReleaseDateBasis = (typeof RELEASE_DATE_BASES)[number];
+
+/**
+ * How the date of an event with a commit revision was established, since there is no release
+ * date to take: the specification commit's UTC committer date, or that of any other source.
+ * Events with a release revision take their date from the release and carry no basis.
+ */
+export const EVENT_DATE_BASES = ["specification-commit", "commit-date"] as const;
+export type EventDateBasis = (typeof EVENT_DATE_BASES)[number];
+
+/** The frozen source whose commits carry `pullRequest` numbers shown as "spec PR". */
+export const SPECIFICATION_SOURCE_ID = "opentelemetry-specification";
 
 /**
  * A tagged release, keyed `{source}@{tag}` because two repositories can publish the same tag.
@@ -117,7 +129,8 @@ export interface TimelineEvent {
   /** ISO date (YYYY-MM-DD), UTC. */
   date: string;
   transition?: string;
-  dateBasis?: "specification-commit";
+  dateBasis?: EventDateBasis;
+  /** A pull request of the revision's own source; only meaningful with a commit revision. */
   pullRequest?: number;
   firstRelease?: string;
   lineageSource?: string;

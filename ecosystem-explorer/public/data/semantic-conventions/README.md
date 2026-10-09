@@ -33,8 +33,14 @@ Candidates proposed by upstream discovery are not accepted history and do not be
 directory. A maintainer accepts one by editing `timeline.json`. Event wording and the historical
 formatting of older events are intentionally preserved.
 
-The agent output is published at `/data/semantic-conventions/accepted-history.json` and
-`/agent/semantic-conventions/`.
+The agent output is published at `/agent/semantic-conventions/`. `accepted-history.json`, beside
+it under `/data/semantic-conventions/`, is the stable agent-facing alias of `timeline.json`: the
+build validates `timeline.json` and writes the same records, so the two never differ in content.
+Edit only `timeline.json`.
+
+`dateBasis` on an event is set only for a commit revision: `specification-commit` for the
+specification's UTC committer date, `commit-date` for the same on any other source (for example a
+GenAI milestone). A release revision takes its date and basis from the release.
 
 ## De facto baselines
 

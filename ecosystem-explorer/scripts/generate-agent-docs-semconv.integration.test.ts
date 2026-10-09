@@ -115,6 +115,7 @@ describe("agent docs: semantic-convention history", () => {
     const genai = timeline.lanes.find((lane) => lane.id === "genai")!;
     const page = buildSemanticConventionsDomainPage(timeline, genai);
     expect(page).toContain("moved from `semantic-conventions` to `semantic-conventions-genai`");
+    expect(page).toContain("| Date | Revision | Type |");
     expect(page).toContain("semantic-conventions@v1.42.0");
     expect(page).toContain("/commit/ebe3d1fb9fdda3398099e11ef91c4c490912f88d");
     const dates = [...page.matchAll(/^\| (\d{4}-\d\d-\d\d) \|/gm)].map((m) => m[1]);

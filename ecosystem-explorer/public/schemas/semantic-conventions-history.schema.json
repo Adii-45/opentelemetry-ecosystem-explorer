@@ -177,7 +177,6 @@
             "type": "string"
           },
           "dateBasis": {
-            "description": "How a release date was established; mirrors the bases documented in the data README.",
             "enum": ["changelog-heading", "release-published-at"],
             "type": "string"
           },
@@ -303,10 +302,11 @@
             "type": "string"
           },
           "dateBasis": {
-            "const": "specification-commit",
+            "enum": ["commit-date", "specification-commit"],
             "type": "string"
           },
           "pullRequest": {
+            "description": "A pull request of the revision's own source; only meaningful with a commit revision.",
             "type": "number"
           },
           "firstRelease": {

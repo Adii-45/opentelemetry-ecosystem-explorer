@@ -14,10 +14,15 @@
  * limitations under the License.
  */
 
-import { HISTORY_SCHEMA_VERSION, type EventRevision, type TimelineData } from "../types";
+import {
+  EVENT_DATE_BASES,
+  HISTORY_SCHEMA_VERSION,
+  RELEASE_DATE_BASES,
+  type EventRevision,
+  type TimelineData,
+} from "../types";
 
 const COMMIT_SHA = /^[0-9a-f]{40}$/;
-const DATE_BASES = ["changelog-heading", "release-published-at"];
 const SOURCE_MODES = ["release", "commit", "frozen"];
 
 type Json = Record<string, unknown>;
@@ -183,7 +188,7 @@ export function validateHistory(input: unknown): string[] {
     if (source && source.mode !== "frozen" && release.commit === undefined) {
       fail(`release ${release.key}: monitored source ${source.id} requires an immutable commit`);
     }
-    if (!DATE_BASES.includes(release.dateBasis)) {
+    if (!(RELEASE_DATE_BASES as readonly string[]).includes(release.dateBasis)) {
       fail(`release ${release.key}: unknown dateBasis ${release.dateBasis}`);
     }
     if (!isIsoDate(release.date)) fail(`release ${release.key}: date ${release.date} is not ISO`);
@@ -206,10 +211,18 @@ export function validateHistory(input: unknown): string[] {
   }
 
   const lanesById = new Map<string, TimelineData["lanes"][number]>();
+  const laneOfNamespace = new Map<string, string>();
   for (const lane of data.lanes) {
     if (lanesById.has(lane.id)) fail(`duplicate lane id: ${lane.id}`);
     lanesById.set(lane.id, lane);
     if (lane.namespaces.length === 0) fail(`lane ${lane.id}: namespaces must not be empty`);
+    for (const namespace of lane.namespaces) {
+      const owner = laneOfNamespace.get(namespace);
+      if (owner !== undefined && owner !== lane.id) {
+        fail(`namespace ${namespace} is claimed by lanes ${owner} and ${lane.id}`);
+      }
+      laneOfNamespace.set(namespace, lane.id);
+    }
   }
 
   const eventsById = new Map<string, TimelineData["events"][number]>();
@@ -221,6 +234,14 @@ export function validateHistory(input: unknown): string[] {
     if (!isHttpsUrl(event.source)) fail(`event ${event.id}: source must be an https URL`);
 
     const revision = event.revision;
+    const dateBasis = event.dateBasis as string | undefined;
+    if (dateBasis !== undefined && !(EVENT_DATE_BASES as readonly string[]).includes(dateBasis)) {
+      fail(`event ${event.id}: unknown dateBasis ${dateBasis}`);
+    } else if (typeof revision === "string" && dateBasis !== undefined) {
+      fail(`event ${event.id}: a release revision takes its date basis from the release`);
+    } else if (typeof revision !== "string" && dateBasis === undefined) {
+      fail(`event ${event.id}: a commit revision requires a dateBasis`);
+    }
     if (typeof revision === "string") {
       const release = releasesByKey.get(revision);
       if (!release) fail(`event ${event.id}: unknown release ${revision}`);
@@ -239,6 +260,12 @@ export function validateHistory(input: unknown): string[] {
     for (const evidence of event.evidence ?? []) {
       const source = sourcesById.get(evidence.source);
       if (!source) fail(`evidence for ${event.id}: unknown source ${evidence.source}`);
+      const laneNamespaces = lanesById.get(event.lane)?.namespaces ?? [];
+      for (const namespace of evidence.namespaces) {
+        if (!laneNamespaces.includes(namespace)) {
+          fail(`evidence for ${event.id}: namespace ${namespace} is not in lane ${event.lane}`);
+        }
+      }
       for (const link of evidence.links) {
         if (!isHttpsUrl(link) || (source && !link.startsWith(`${source.repository}/`))) {
           fail(`evidence for ${event.id}: ${link} is not an https URL inside ${evidence.source}`);
