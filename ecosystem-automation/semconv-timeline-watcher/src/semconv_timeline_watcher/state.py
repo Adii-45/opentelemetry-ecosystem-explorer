@@ -13,25 +13,12 @@
 # limitations under the License.
 #
 
-# Copyright The OpenTelemetry Authors
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     https://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 """Automation-owned processing state and candidate records.
 
 Everything here lives under ``ecosystem-registry/semantic-conventions/`` and is separate from the
-accepted history in ``timeline.json``. Writes are staged to a temporary file, validated by reading
-them back, and moved into place with ``os.replace`` so an interrupted run leaves the previous valid
+accepted history in ``timeline.json``. Every record is validated with the same rules the reader and
+the review renderer use *before* anything is staged, then written to a temporary file, read back, and
+moved into place with ``os.replace``, so invalid data or an interrupted run leaves the previous valid
 file. Output is sorted and carries no timestamps, so unchanged inputs rewrite identical bytes.
 
 Two different marks exist and must not be confused:
@@ -112,6 +99,10 @@ class Store:
         return state
 
     def save_state(self, state: dict) -> None:
+        """Validate, then replace. Invalid state raises InvalidFileError and the last valid file stays."""
+        problems = state_problems(state)
+        if problems:
+            raise InvalidFileError(self.state_path, problems)
         self._atomic_write(self.state_path, state)
 
     def read_record(self, source: str, review_key: str) -> dict | None:
@@ -129,6 +120,12 @@ class Store:
         return record
 
     def write_record(self, record: dict) -> None:
+        """Validate, then replace. Invalid data raises InvalidFileError and the last valid file stays."""
+        problems = record_problems(record)
+        if problems:
+            key = record.get("reviewKey") if isinstance(record, dict) else None
+            name = f"{stem(key)}.json" if isinstance(key, str) and "@" in key else "<invalid record>"
+            raise InvalidFileError(self.dir / "candidates" / name, problems)
         self._atomic_write(self.record_path(record["source"], record["reviewKey"]), record)
 
     def delete_record(self, source: str, review_key: str) -> None:

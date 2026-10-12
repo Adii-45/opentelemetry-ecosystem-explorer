@@ -13,26 +13,13 @@
 # limitations under the License.
 #
 
-# Copyright The OpenTelemetry Authors
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     https://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 """End-to-end pipeline behaviour on fixture repositories: replay, failure, coverage and completion."""
 
 import pytest
 from semconv_timeline_watcher import pipeline
+from semconv_timeline_watcher.accepted import TIMELINE_PATH
 from semconv_timeline_watcher.gitrepo import GitError
-from semconv_timeline_watcher.state import Store
+from semconv_timeline_watcher.state import REGISTRY_DIR, Store
 from watcher_common.testing import run_git
 
 from .conftest import CORE, GENAI, RELEASES, FakeClient, commit, release, run_core, run_genai, write
@@ -240,8 +227,29 @@ def test_manual_range_replays_a_closed_interval_in_either_source(tmp_path, accep
 
 
 def test_published_candidates_stay_out_of_public_data():
-    from semconv_timeline_watcher.accepted import TIMELINE_PATH
-    from semconv_timeline_watcher.state import REGISTRY_DIR
-
     assert "public" not in REGISTRY_DIR.parts and REGISTRY_DIR.parts[0] == "ecosystem-registry"
     assert "public" in TIMELINE_PATH.parts  # accepted history is the only thing published
+
+
+def test_an_extractor_record_that_fails_validation_fails_the_revision_and_keeps_the_previous_file(
+    tmp_path, accepted, core, monkeypatch
+):
+    store = Store(tmp_path / "reg")
+    state, _ = run_core(store, accepted, core)
+    key = f"{CORE}@v1.1.0"
+    path = store.record_path(CORE, key)
+    before = path.read_bytes()
+    good = store.read_record(CORE, key)
+    bad = {**good, "candidates": [{"id": "x", "disposition": None}], "date": ""}
+    real = pipeline.revisions.build_record
+    monkeypatch.setattr(
+        pipeline.revisions,
+        "build_record",
+        lambda spec, *a, **k: bad if spec["reviewKey"] == key else real(spec, *a, **k),
+    )
+    again, report = run_core(store, accepted, core, state, force=True)
+    assert report["actions"][key] == "failed"
+    assert "date must be a non-empty string" in again["revisions"][key]["error"]
+    assert again["revisions"][key]["status"] == "failed"  # visible, never treated as processed
+    assert path.read_bytes() == before and not list((tmp_path / "reg").rglob("*.tmp"))
+    assert report["actions"][f"{CORE}@v1.0.1"] != "failed"  # the other revision is unaffected

@@ -13,20 +13,6 @@
 # limitations under the License.
 #
 
-# Copyright The OpenTelemetry Authors
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     https://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 """Git access, model snapshots, changelog parsing and candidate extraction."""
 
 import pytest
@@ -34,6 +20,7 @@ from semconv_timeline_watcher import changelog, discovery, revisions
 from semconv_timeline_watcher.extract import extract_candidates
 from semconv_timeline_watcher.gitrepo import GitError
 from semconv_timeline_watcher.model_diff import Snapshot, take_snapshot
+from watcher_common.testing import git_commit, run_git
 
 from .conftest import write
 
@@ -65,8 +52,6 @@ def test_snapshot_reads_both_registry_formats_and_ignores_refs(core):
 def test_unparseable_model_files_are_listed_not_skipped(core):
     write(core["path"], "model/broken.yaml", "groups: [unclosed\n")
     core["monkeypatch"].setenv("GIT_COMMITTER_DATE", "2026-03-01T00:00:00+00:00")
-    from watcher_common.testing import git_commit, run_git
-
     run_git(core["path"], "add", "-A")
     git_commit(core["path"], "break")
     assert take_snapshot(core["git"], "HEAD").unparsed == ["model/broken.yaml"]

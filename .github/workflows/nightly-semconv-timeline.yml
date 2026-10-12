@@ -36,8 +36,62 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate-inputs:
+    name: Validate dispatch inputs
+    runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      core-args: ${{ steps.args.outputs.core-args }}
+      genai-args: ${{ steps.args.outputs.genai-args }}
+    steps:
+      # Replay inputs act on exactly one source. Reject combinations that would otherwise be silently dropped,
+      # and build the extra watcher arguments here so that the discover jobs only forward them.
+      - name: Validate replay inputs and build watcher arguments
+        id: args
+        env:
+          SOURCE: ${{ inputs.source }}
+          TAG: ${{ inputs.tag }}
+          FROM_REF: ${{ inputs.from }}
+          TO_REF: ${{ inputs.to }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          fail() { echo "::error title=Invalid replay inputs::$1"; exit 1; }
+          [ "$FORCE" = "true" ] || FORCE=""
+          if [ -z "$TAG$FROM_REF$TO_REF$FORCE" ]; then
+            echo "core-args=" >> "$GITHUB_OUTPUT"
+            echo "genai-args=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          case "$SOURCE" in
+            semantic-conventions | semantic-conventions-genai) ;;
+            *) fail "tag, from, to and force replay a single source: set source to semantic-conventions or semantic-conventions-genai (got '${SOURCE:-all}'), or clear the replay inputs." ;;
+          esac
+          for ref in "$TAG" "$FROM_REF" "$TO_REF"; do
+            [ -z "$ref" ] || [[ "$ref" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || fail "'$ref' is not a plain tag, branch or commit."
+          done
+          [ -z "$TO_REF" ] || [ -n "$FROM_REF" ] || fail "'to' needs 'from'."
+          [ -z "$TAG" ] || { [ -z "$FROM_REF" ] && [ -z "$TO_REF" ]; } || fail "'tag' cannot be combined with 'from' or 'to'."
+          if [ "$SOURCE" = "semantic-conventions-genai" ]; then
+            [ -z "$TAG" ] || fail "'tag' replays a published core release; use semantic-conventions, or 'from'/'to' for genai."
+          else
+            [ -z "$FROM_REF" ] || [ -n "$TO_REF" ] || fail "a core range needs both 'from' and 'to'."
+          fi
+          args=""
+          [ -z "$TAG" ] || args="$args --tag $TAG"
+          [ -z "$FROM_REF" ] || args="$args --from $FROM_REF"
+          [ -z "$TO_REF" ] || args="$args --to $TO_REF"
+          [ -z "$FORCE" ] || args="$args --force"
+          if [ "$SOURCE" = "semantic-conventions" ]; then
+            echo "core-args=$args" >> "$GITHUB_OUTPUT"
+            echo "genai-args=" >> "$GITHUB_OUTPUT"
+          else
+            echo "core-args=" >> "$GITHUB_OUTPUT"
+            echo "genai-args=$args" >> "$GITHUB_OUTPUT"
+          fi
+
   core-discover:
     name: Discover semantic-conventions
+    needs: [validate-inputs]
     if: >-
       (github.event_name != 'schedule' || github.repository ==
       'open-telemetry/opentelemetry-ecosystem-explorer') && (inputs.source == '' || inputs.source ==
@@ -47,12 +101,10 @@ jobs:
       pull-requests: write # Create or update the automated candidate PR
     uses: $/.github/workflows/reusable-registry-sync.yml
     with:
-      # Replay flags apply only when this source is chosen explicitly; the watcher validates every value.
+      # Replay arguments come from validate-inputs, which rejects any that do not apply to a single source.
       watcher-command:
-        "uv run semconv-timeline-watcher run --source semantic-conventions${{ inputs.source ==
-        'semantic-conventions' && format('{0}{1}{2}{3}', inputs.tag && format(' --tag {0}',
-        inputs.tag) || '', inputs.from && format(' --from {0}', inputs.from) || '', inputs.to &&
-        format(' --to {0}', inputs.to) || '', inputs.force && ' --force' || '') || '' }}"
+        "uv run semconv-timeline-watcher run --source semantic-conventions${{
+        needs.validate-inputs.outputs.core-args }}"
       registry-path: "ecosystem-registry/semantic-conventions/semantic-conventions/"
       branch-name: "otelbot/automated-semconv-timeline-core"
       pr-title: "[automated] Update semantic-conventions timeline candidates"
@@ -147,6 +199,7 @@ jobs:
 
   genai-discover:
     name: Discover semantic-conventions-genai
+    needs: [validate-inputs]
     if: >-
       (github.event_name != 'schedule' || github.repository ==
       'open-telemetry/opentelemetry-ecosystem-explorer') && (inputs.source == '' || inputs.source ==
@@ -156,12 +209,10 @@ jobs:
       pull-requests: write # Create or update the automated candidate PR
     uses: $/.github/workflows/reusable-registry-sync.yml
     with:
-      # Replay flags apply only when this source is chosen explicitly; the watcher validates every value.
+      # Replay arguments come from validate-inputs, which rejects any that do not apply to a single source.
       watcher-command:
-        "uv run semconv-timeline-watcher run --source semantic-conventions-genai${{ inputs.source ==
-        'semantic-conventions-genai' && format('{0}{1}{2}{3}', inputs.tag && format(' --tag {0}',
-        inputs.tag) || '', inputs.from && format(' --from {0}', inputs.from) || '', inputs.to &&
-        format(' --to {0}', inputs.to) || '', inputs.force && ' --force' || '') || '' }}"
+        "uv run semconv-timeline-watcher run --source semantic-conventions-genai${{
+        needs.validate-inputs.outputs.genai-args }}"
       registry-path: "ecosystem-registry/semantic-conventions/semantic-conventions-genai/"
       branch-name: "otelbot/automated-semconv-timeline-genai"
       pr-title: "[automated] Update semantic-conventions-genai timeline candidates"

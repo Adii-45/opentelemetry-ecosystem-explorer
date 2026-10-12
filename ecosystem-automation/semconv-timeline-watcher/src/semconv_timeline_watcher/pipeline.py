@@ -13,20 +13,6 @@
 # limitations under the License.
 #
 
-# Copyright The OpenTelemetry Authors
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     https://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 """Per-source discovery → extraction → candidate records → processing state.
 
 Each source runs in isolation: an exception in one leaves the other's state untouched, and a failed
@@ -103,6 +89,7 @@ def _process_spec(
             return "tag-changed"
     try:
         record = merge_dispositions(previous, revisions.build_record(spec, repo, accepted, paths))
+        store.write_record(record)  # validated first: an invalid record fails this revision and keeps the old file
     except Exception as e:  # noqa: BLE001 - recorded per revision; other revisions still run
         logger.exception("Extraction failed for %s", key)
         if current:
@@ -115,7 +102,6 @@ def _process_spec(
                 "error": str(e),
             }
         return "failed"
-    store.write_record(record)
     entry = {"kind": spec["kind"], "source": spec["source"], "commit": spec["commit"]}
     if spec.get("manual"):
         entry["manual"] = True
