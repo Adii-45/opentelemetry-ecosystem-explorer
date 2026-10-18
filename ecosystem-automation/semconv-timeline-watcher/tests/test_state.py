@@ -278,3 +278,48 @@ def test_a_state_error_names_the_file_and_the_nested_field(tmp_path):
     with pytest.raises(InvalidFileError) as e:
         Store(tmp_path).save_state(state)
     assert "state.json" in str(e.value) and "sources.a.revisions[k].source must be a non-empty string" in str(e.value)
+
+
+def with_subjects(subjects, *, commit, disposition=None):
+    record = make_record(["a"], commit=commit)
+    record["candidates"][0].update(subjects=subjects, fromStates={"development": len(subjects)})
+    record["candidates"][0]["scope"] = {"changed": len(subjects), "total": len(subjects)}
+    record["candidates"][0]["disposition"] = disposition
+    return record
+
+
+KEPT = {"status": "excluded", "reason": "reviewed"}
+
+
+def test_a_subject_beyond_the_displayed_ten_still_resets_the_disposition():
+    names = [f"ns.attr{i:02d}" for i in range(15)]
+    old = with_subjects(names, commit="a" * 40, disposition=KEPT)
+    changed = [*names[:14], "ns.other"]  # same count, same first ten, a different eleventh-or-later subject
+    merged = merge_dispositions(old, with_subjects(changed, commit="b" * 40))
+    assert merged["candidates"][0]["disposition"] is None
+    assert merged["resetReviews"]["candidates"] == ["a"]
+
+
+def test_an_unchanged_candidate_keeps_its_disposition_when_the_revision_grows():
+    names = [f"ns.attr{i:02d}" for i in range(15)]
+    merged = merge_dispositions(
+        with_subjects(names, commit="a" * 40, disposition=KEPT), with_subjects(list(names), commit="b" * 40)
+    )
+    assert merged["candidates"][0]["disposition"] == KEPT and "resetReviews" not in merged
+
+
+def test_a_shorter_or_longer_subject_list_with_the_same_first_ten_resets_the_disposition():
+    names = [f"ns.attr{i:02d}" for i in range(12)]
+    for other in (names[:11], [*names, "ns.attr99"]):
+        merged = merge_dispositions(
+            with_subjects(names, commit="a" * 40, disposition=KEPT), with_subjects(other, commit="b" * 40)
+        )
+        assert merged["candidates"][0]["disposition"] is None
+
+
+def test_replaying_the_same_revision_still_keeps_every_disposition_whatever_the_subjects():
+    names = [f"ns.attr{i:02d}" for i in range(15)]
+    merged = merge_dispositions(
+        with_subjects(names, commit="a" * 40, disposition=KEPT), with_subjects(names[:3], commit="a" * 40)
+    )
+    assert merged["candidates"][0]["disposition"] == KEPT

@@ -253,3 +253,83 @@ def test_an_extractor_record_that_fails_validation_fails_the_revision_and_keeps_
     assert again["revisions"][key]["status"] == "failed"  # visible, never treated as processed
     assert path.read_bytes() == before and not list((tmp_path / "reg").rglob("*.tmp"))
     assert report["actions"][f"{CORE}@v1.0.1"] != "failed"  # the other revision is unaffected
+
+
+def _range_record(base, end, *, date, disposition=None):
+    """A minimal valid commit-range record from commit `base` to commit `end`."""
+    key = f"{GENAI}@{base[:12]}..{end[:12]}"
+    candidate = {
+        "id": f"{key}/stability/gen_ai/stable",
+        "kind": "stability",
+        "proposedType": "stability",
+        "lane": None,
+        "transition": "gen_ai: selected subjects",
+        "scope": {"changed": 1, "total": 1},
+        "fromStates": {"development": 1},
+        "subjects": ["gen_ai.a"],
+        "evidence": [],
+        "reasons": [],
+        "warnings": [],
+        "disposition": disposition,
+    }
+    record = {
+        "schemaVersion": 1,
+        "reviewKey": key,
+        "source": GENAI,
+        "kind": "range",
+        "commit": end,
+        "baselineCommit": base,
+        "date": date,
+        "dateBasis": "commit-date",
+        "incomplete": False,
+        "method": {},
+        "gaps": [],
+        "relevantCommits": [],
+        "noMilestone": None,
+        "candidates": [candidate],
+    }
+    return key, record
+
+
+def _store_with(tmp_path, records):
+    store = Store(tmp_path / "reg")
+    for record in records:
+        store.write_record(record)
+    revisions = {r["reviewKey"]: {"kind": r["kind"], "source": r["source"], "commit": r["commit"]} for r in records}
+    return store, {**pipeline.empty_source_state(), "revisions": revisions}
+
+
+def test_chained_ranges_with_the_same_commit_date_keep_their_logical_order_and_the_cursor(tmp_path, accepted):
+    a, b, c = "f" * 40, "e" * 40, "a" * 40
+    done = {"status": "excluded", "reason": "reviewed"}
+    a_to_b, first = _range_record(a, b, date="2026-05-01", disposition=done)
+    b_to_c, second = _range_record(b, c, date="2026-05-01")  # same UTC day; its key sorts before the first one
+    assert b_to_c < a_to_b  # a plain (date, key) sort would put B->C first and leave the cursor empty
+    store, state = _store_with(tmp_path, [first, second])
+    refreshed = pipeline.refresh_statuses(store, accepted, state)
+    assert refreshed["order"] == [a_to_b, b_to_c]
+    assert (
+        refreshed["revisions"][a_to_b]["status"] == "complete" and refreshed["revisions"][b_to_c]["status"] == "pending"
+    )
+    assert refreshed["cursor"] == a_to_b
+
+
+def test_a_longer_chain_is_ordered_by_baseline_and_end_whatever_the_dates_and_keys(tmp_path, accepted):
+    shas = ["d" * 40, "c" * 40, "b" * 40, "a" * 40]
+    pairs = [(shas[i], shas[i + 1]) for i in range(3)]
+    made = [_range_record(base, end, date="2026-05-01") for base, end in pairs]
+    store, state = _store_with(tmp_path, [r for _, r in reversed(made)])
+    assert pipeline.refresh_statuses(store, accepted, state)["order"] == [k for k, _ in made]
+
+
+def test_independent_ranges_and_releases_keep_the_plain_date_then_key_order(tmp_path, accepted, core):
+    store = Store(tmp_path / "reg")
+    state, _ = run_core(store, accepted, core)
+    plain = sorted(state["order"], key=lambda k: (store.read_record(CORE, k)["date"], k))
+    assert state["order"] == plain and state["order"] == [f"{CORE}@v1.0.1", f"{CORE}@v1.1.0"]
+    # Releases are never linked by baselines: a release whose baselineCommit equals another's commit is not reordered.
+    for key in state["order"]:
+        record = store.read_record(CORE, key)
+        record["baselineCommit"] = store.read_record(CORE, state["order"][-1])["commit"]
+        store.write_record(record)
+    assert pipeline.refresh_statuses(store, accepted, state)["order"] == plain

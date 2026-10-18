@@ -62,11 +62,13 @@ def test_review_body_gives_a_maintainer_everything_needed_to_decide(tmp_path, ac
         "timeline.json",
         "uv run semconv-timeline-watcher check",
         "bun run test",
+        "bun run serve",
         "does not move it",
         "Closing this issue does not complete the review",
         "`http-new`",
     ]:
         assert expected in body, expected
+    assert "bun run dev" not in body  # the frontend defines `serve`, not `dev`
     assert body == review.render_body(
         store.read_record(CORE, key), "pending", accepted, state["revisions"][key], "ecosystem-registry/x.json"
     )
@@ -117,3 +119,14 @@ def test_completed_revisions_get_no_issue(tmp_path, accepted, core):
     state = pipeline.refresh_statuses(store, accepted, state)
     assert review.upsert_reviews(client, "o/r", _items(store, accepted, state, CORE), accepted) == []
     assert client.issues == []
+
+
+def test_the_issue_shows_the_first_ten_subjects_while_the_record_keeps_all(tmp_path, accepted, core):
+    store = Store(tmp_path / "reg")
+    state, _ = run_core(store, accepted, core)
+    key = f"{CORE}@v1.1.0"
+    record = store.read_record(CORE, key)
+    record["candidates"][0]["subjects"] = [f"ns.attr{i:02d}" for i in range(15)]
+    body = review.render_body(record, "pending", accepted, state["revisions"][key], "ecosystem-registry/x.json")
+    assert "`ns.attr09`" in body and "`ns.attr10`" not in body and "and 5 more" in body
+    assert len(record["candidates"][0]["subjects"]) == 15  # rendering never shortens the stored list

@@ -131,12 +131,14 @@ def record_problems(record: object) -> list[str]:
         if not _obj(candidate):
             p.append(f"{at} must be an object")
             continue
-        if _str(candidate.get("id")):
-            at = f"candidates[{i}] ({candidate['id']})"  # name the candidate so the defect is findable
-        _check(p, _str(candidate.get("id")), f"{at}.id must be a non-empty string")
-        if candidate.get("id") in seen:
-            p.append(f"{at}.id {candidate.get('id')!r} is duplicated")
-        seen.add(str(candidate.get("id")))
+        candidate_id = candidate.get("id")
+        if _str(candidate_id):
+            at = f"candidates[{i}] ({candidate_id})"  # name the candidate so the defect is findable
+            if candidate_id in seen:  # only a string can be looked up: a list or object id is unhashable
+                p.append(f"{at}.id {candidate_id!r} is duplicated")
+            seen.add(candidate_id)
+        else:
+            p.append(f"{at}.id must be a non-empty string")
         _check(p, _str(candidate.get("kind")), f"{at}.kind must be a non-empty string")
         _check(p, _str(candidate.get("transition")), f"{at}.transition must be a non-empty string")
         _check(p, _str(candidate.get("proposedType")), f"{at}.proposedType must be a non-empty string")

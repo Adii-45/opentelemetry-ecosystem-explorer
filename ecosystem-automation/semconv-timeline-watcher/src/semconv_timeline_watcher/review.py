@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 LABEL = "semantic-convention-timeline"
 TIMELINE_FILE = "ecosystem-explorer/public/data/semantic-conventions/timeline.json"
+MAX_SUBJECTS_SHOWN = 10  # the candidate file keeps every subject; the issue stays readable
 MAX_BODY = 60000  # GitHub rejects issue bodies above 65,536 characters
 _MENTION = re.compile(r"@(?=[\w-])")
 
@@ -192,7 +193,9 @@ def render_body(
             *(f"  - [{safe(link['label'])}]({link['url']})" for link in candidate["evidence"]),
         ]
         if candidate["subjects"]:
-            lines.append("  - subjects: " + ", ".join(f"`{safe(s)}`" for s in candidate["subjects"]))
+            shown, hidden = candidate["subjects"][:MAX_SUBJECTS_SHOWN], len(candidate["subjects"]) - MAX_SUBJECTS_SHOWN
+            more = f" … and {hidden} more (see the candidate file)" if hidden > 0 else ""
+            lines.append("  - subjects: " + ", ".join(f"`{safe(s)}`" for s in shown) + more)
     lines += ["", "### Extraction gaps and ambiguities", ""]
     lines += [f"- **{gap['kind']}**: {safe(gap['message'])}" for gap in record["gaps"]] or ["- none recorded"]
     structure = (record.get("method") or {}).get("structure") or {}
@@ -234,7 +237,7 @@ def render_body(
         "",
         "```sh",
         "uv run semconv-timeline-watcher check",
-        "cd ecosystem-explorer && bun run test && bun run dev",
+        "cd ecosystem-explorer && bun run test && bun run serve",
         "```",
     ]
     return _cap("\n".join(lines) + "\n")

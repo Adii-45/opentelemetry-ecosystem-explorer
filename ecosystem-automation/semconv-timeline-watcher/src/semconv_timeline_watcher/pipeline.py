@@ -46,12 +46,29 @@ def _slug(accepted: AcceptedHistory, source: str) -> str:
     return _repository(accepted, source).removeprefix("https://github.com/")
 
 
+def _order(keys: list[str], dates: dict[str, str], spans: dict[str, tuple[str | None, str]]) -> list[str]:
+    """Date order, except that a commit range never precedes the range that ends where it starts.
+
+    Core releases have no ``spans`` and keep the plain (date, key) order. Ranges of one source form a chain
+    (A ends at the commit B starts from); two ranges sharing a commit date must not be ordered by their SHAs.
+    """
+    pending = sorted(keys, key=lambda k: (dates[k], k))
+    ordered: list[str] = []
+    while pending:
+        remaining = {spans[k][1] for k in pending if k in spans}
+        # A range waits while another unplaced range ends at its baseline.
+        ready = next((k for k in pending if k not in spans or spans[k][0] not in remaining - {spans[k][1]}), pending[0])
+        ordered.append(ready)
+        pending.remove(ready)
+    return ordered
+
+
 def refresh_statuses(store: Store, accepted: AcceptedHistory, src: dict) -> dict:
     """Recompute every revision's status, the order and the cursor from the candidate files.
 
     Maintainer edits to a record's dispositions take effect here; no network is needed.
     """
-    dates = {}
+    dates, spans = {}, {}
     for key, revision in src["revisions"].items():
         revision.pop("invalid", None)
         try:
@@ -62,8 +79,11 @@ def refresh_statuses(store: Store, accepted: AcceptedHistory, src: dict) -> dict
         failed = revision.get("error") or revision.get("invalid")
         revision["status"] = "failed" if failed else record_status(record, accepted)
         dates[key] = record["date"] if record else ""
+        if record and record["kind"] == "range":
+            spans[key] = (record.get("baselineCommit"), record["commit"])
     # A manual replay of an arbitrary range is evidence to review, but never part of the cursor's run.
-    src["order"] = sorted((k for k, r in src["revisions"].items() if not r.get("manual")), key=lambda k: (dates[k], k))
+    in_run = [k for k, r in src["revisions"].items() if not r.get("manual")]
+    src["order"] = _order(in_run, dates, {k: v for k, v in spans.items() if k in in_run})
     src["cursor"] = cursor_of(src["order"], src["revisions"])
     return src
 

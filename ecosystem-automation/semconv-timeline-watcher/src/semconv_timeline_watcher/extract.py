@@ -32,7 +32,6 @@ PROMOTED = ("release_candidate", "stable")
 EXTRACTOR = "model-stability-diff"
 _PROMOTION_WORDING = re.compile(r"promot|release[_ ]candidate|\bstable\b", re.IGNORECASE)
 _REMOVAL_WORDING = re.compile(r"\bmov(?:e|ed|es)\b|\bremov|\bdeprecat", re.IGNORECASE)
-_MAX_SUBJECTS = 10
 _MAX_LINKS = 5
 
 
@@ -214,7 +213,7 @@ def extract_candidates(
                 "transition": transition,
                 "scope": {"changed": len(subjects), "total": total},
                 "fromStates": dict(sorted(p["from"].items())),
-                "subjects": subjects[:_MAX_SUBJECTS],
+                "subjects": subjects,  # complete: the digest compares it; the review issue shortens it
                 "evidence": _links(p["files"], repository, sha, related),
                 "changelog": [{"text": e["text"], "references": e["references"]} for e in related][:_MAX_LINKS],
                 "reasons": reasons,

@@ -269,3 +269,19 @@ def test_an_unscoped_entry_that_suggests_a_milestone_is_not_silently_ignored(acc
         lanes=accepted.lanes,
     )
     assert any("(no scope)" in g["message"] for g in found["gaps"])
+
+
+def test_a_candidate_keeps_every_affected_subject_not_just_the_displayed_ones(accepted):
+    names = [f"k8s.attr{i:02d}" for i in range(15)]
+    found = extract_candidates(
+        source_id="semantic-conventions",
+        review_key="k",
+        repository="https://r",
+        sha="a" * 40,
+        before=Snapshot(subjects={("attribute", n): "development" for n in names}),
+        after=Snapshot(subjects={("attribute", n): "stable" for n in names}),
+        entries=[],
+        lanes=accepted.lanes,
+    )
+    (candidate,) = found["candidates"]
+    assert candidate["subjects"] == names and candidate["scope"] == {"changed": 15, "total": 15}

@@ -419,3 +419,53 @@ def test_a_renderer_bug_is_isolated_per_item(env, monkeypatch, capsys):
     assert reviews(env, issues) == 1
     assert len(issues.issues) == 1 and "v1.1.0" in issues.issues[0]["title"]
     assert "failed: KeyError" in capsys.readouterr().err
+
+
+# --- candidate ids: a malformed JSON value is a normal defect, never a TypeError ---------------------------
+
+
+@pytest.mark.parametrize(
+    "bad_id", [["a"], {"a": 1}, "", 5, None, True], ids=["list", "object", "empty", "number", "null", "boolean"]
+)
+def test_a_malformed_candidate_id_is_reported_without_raising(tmp_path, accepted, core, bad_id):
+    _, record = _valid_record(tmp_path / "reg", accepted, core)
+    index = len(record["candidates"])
+    record["candidates"].append({**record["candidates"][0], "id": bad_id})
+    problems = record_problems(record)
+    assert any(f"candidates[{index}].id must be a non-empty string" in p for p in problems), problems
+    assert not any("duplicated" in p for p in problems)
+
+
+def test_duplicate_string_ids_are_still_detected_and_a_malformed_one_does_not_hide_them(tmp_path, accepted, core):
+    _, record = _valid_record(tmp_path / "reg", accepted, core)
+    first, index = record["candidates"][0], len(record["candidates"])
+    record["candidates"] += [dict(first), {**first, "id": ["x"]}, {**first, "id": {"x": 1}}]
+    problems = record_problems(record)
+    assert any(f"candidates[{index}] ({first['id']}).id" in p and "duplicated" in p for p in problems), problems
+    assert sum("must be a non-empty string" in p for p in problems) == 2
+
+
+def _break_first_candidate_id(env, bad_id):
+    go(env, FakeClient(RELEASES), [CORE])
+    store = Store(env["tmp"] / "reg" / CORE)
+    first = f"{CORE}@v1.0.1"
+    bad = store.read_record(CORE, first)
+    template = store.read_record(CORE, f"{CORE}@v1.1.0")["candidates"][0]
+    bad["candidates"] = [*bad["candidates"], {**template, "id": bad_id}]
+    bad["noMilestone"] = None
+    store.record_path(CORE, first).write_text(json.dumps(bad))
+    return first, f"{CORE}@v1.1.0"
+
+
+@pytest.mark.parametrize("bad_id", [["a"], {"a": 1}, ""], ids=["list", "object", "empty"])
+def test_review_and_check_survive_a_malformed_id_and_the_healthy_revision_still_gets_its_issue(env, capsys, bad_id):
+    first, second = _break_first_candidate_id(env, bad_id)
+    issues = FakeClient()
+    assert reviews(env, issues) == 1  # no uncaught TypeError; non-zero so the workflow notifies
+    by_marker = {m: i for m in (first, second) for i in issues.issues if review.marker(m) in i["body"]}
+    assert (
+        "Extraction failed" in by_marker[first]["body"] and "id must be a non-empty string" in by_marker[first]["body"]
+    )
+    assert "## Review `semantic-conventions@v1.1.0`" in by_marker[second]["body"]
+    assert check(env) == 1  # check reports the same defect instead of crashing
+    assert "id must be a non-empty string" in capsys.readouterr().err
