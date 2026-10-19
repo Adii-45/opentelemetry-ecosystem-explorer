@@ -323,3 +323,53 @@ def test_replaying_the_same_revision_still_keeps_every_disposition_whatever_the_
         with_subjects(names, commit="a" * 40, disposition=KEPT), with_subjects(names[:3], commit="a" * 40)
     )
     assert merged["candidates"][0]["disposition"] == KEPT
+
+
+BAD_TEXT = [None, 5, 1.5, True, [], ["why"], {}, {"why": 1}, "", "   ", "\n\t"]
+
+
+def _with_disposition(disposition):
+    record = make_record(["a"])
+    record["candidates"][0]["disposition"] = disposition
+    return record
+
+
+@pytest.mark.parametrize("reason", BAD_TEXT, ids=repr)
+def test_an_excluded_candidate_needs_a_nonblank_string_reason(accepted, reason):
+    problems = check_record(_with_disposition({"status": "excluded", "reason": reason}), accepted)
+    assert problems and "an excluded candidate needs a reason" in problems[0]
+    assert record_status(_with_disposition({"status": "excluded", "reason": reason}), accepted) == PENDING
+
+
+def test_an_excluded_candidate_without_a_reason_key_is_rejected_and_a_real_reason_is_kept(accepted):
+    assert check_record(_with_disposition({"status": "excluded"}), accepted)
+    good = _with_disposition({"status": "excluded", "reason": " an attribute addition "})
+    assert check_record(good, accepted) == [] and record_status(good, accepted) == COMPLETE
+
+
+@pytest.mark.parametrize("reason", BAD_TEXT, ids=repr)
+def test_a_no_milestone_needs_a_nonblank_string_reason_and_cannot_complete_a_revision(accepted, reason):
+    record = make_record(no_milestone={"reason": reason})
+    assert any("noMilestone needs a reason" in p for p in check_record(record, accepted))
+    assert record_status(record, accepted) == PENDING  # the cursor cannot move past it
+
+
+def test_a_no_milestone_with_a_real_reason_completes_the_revision(accepted):
+    record = make_record(no_milestone={"reason": "attribute additions only"})
+    assert check_record(record, accepted) == [] and record_status(record, accepted) == COMPLETE
+
+
+@pytest.mark.parametrize("event_id", ["__missing__", None, "", "  ", 5, 1.5, True, [], ["a"], {}, {"a": 1}], ids=repr)
+def test_an_accepted_candidate_needs_a_nonempty_string_event_id_before_any_lookup(accepted, event_id):
+    disposition = {"status": "accepted"}
+    if event_id != "__missing__":
+        disposition["eventId"] = event_id
+    problems = check_record(_with_disposition(disposition), accepted)  # must not raise TypeError for [] or {}
+    assert problems == ["a: an accepted candidate needs an eventId string"]
+
+
+def test_an_accepted_candidate_still_needs_an_event_that_exists(accepted):
+    known = next(iter(accepted.events))
+    assert check_record(_with_disposition({"status": "accepted", "eventId": known}), accepted) == []
+    unknown = check_record(_with_disposition({"status": "accepted", "eventId": "no-such-event"}), accepted)
+    assert unknown == ["a: accepted event 'no-such-event' is not in timeline.json"]

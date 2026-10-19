@@ -99,12 +99,12 @@ jobs:
     permissions:
       contents: write # Push candidate files and processing state to the automation branch
       pull-requests: write # Create or update the automated candidate PR
-    uses: $/.github/workflows/reusable-registry-sync.yml
+    uses: ./.github/workflows/reusable-registry-sync.yml
     with:
       # Replay arguments come from validate-inputs, which rejects any that do not apply to a single source.
       watcher-command:
-        "uv run semconv-timeline-watcher run --source semantic-conventions${{
-        needs.validate-inputs.outputs.core-args }}"
+        "uv run semconv-timeline-watcher run --source semantic-conventions --carry-branch
+        otelbot/automated-semconv-timeline-core${{ needs.validate-inputs.outputs.core-args }}"
       registry-path: "ecosystem-registry/semantic-conventions/semantic-conventions/"
       branch-name: "otelbot/automated-semconv-timeline-core"
       pr-title: "[automated] Update semantic-conventions timeline candidates"
@@ -207,12 +207,12 @@ jobs:
     permissions:
       contents: write # Push candidate files and processing state to the automation branch
       pull-requests: write # Create or update the automated candidate PR
-    uses: $/.github/workflows/reusable-registry-sync.yml
+    uses: ./.github/workflows/reusable-registry-sync.yml
     with:
       # Replay arguments come from validate-inputs, which rejects any that do not apply to a single source.
       watcher-command:
-        "uv run semconv-timeline-watcher run --source semantic-conventions-genai${{
-        needs.validate-inputs.outputs.genai-args }}"
+        "uv run semconv-timeline-watcher run --source semantic-conventions-genai --carry-branch
+        otelbot/automated-semconv-timeline-genai${{ needs.validate-inputs.outputs.genai-args }}"
       registry-path: "ecosystem-registry/semantic-conventions/semantic-conventions-genai/"
       branch-name: "otelbot/automated-semconv-timeline-genai"
       pr-title: "[automated] Update semantic-conventions-genai timeline candidates"
@@ -314,7 +314,7 @@ jobs:
     if:
       ${{ !cancelled() && (needs.core-discover.result != 'skipped' || needs.genai-discover.result !=
       'skipped') }}
-    uses: $/.github/workflows/reusable-workflow-notification.yml
+    uses: ./.github/workflows/reusable-workflow-notification.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}
       watcher-name: "semconv-timeline-watcher"

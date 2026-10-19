@@ -61,6 +61,8 @@ def _record_extras(record: dict, p: list[str]) -> None:
     for key in ("tag", "baselineTag", "compareUrl"):
         _optional_str(record, key, p)
     structure = (record.get("method") or {}).get("structure") if _obj(record.get("method")) else None
+    if structure is None and isinstance(record.get("baselineCommit"), str) and _obj(record.get("method")):
+        p.append("method.structure is required when the revision was compared with a baseline")
     if structure is not None:
         names = ("groupsAdded", "groupsRemoved", "subjectsAddedToExistingNamespaces")
         _check(

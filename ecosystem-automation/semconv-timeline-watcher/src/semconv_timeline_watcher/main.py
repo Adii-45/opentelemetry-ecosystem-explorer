@@ -21,7 +21,7 @@ import os
 import sys
 from pathlib import Path
 
-from . import pipeline, review
+from . import carry, pipeline, review
 from .accepted import TIMELINE_PATH, AcceptedHistory, load_accepted
 from .github_client import GitHubClient
 from .gitrepo import REF_RE, GitRepo
@@ -53,6 +53,11 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--to", dest="to_ref", type=_ref, help="explicit range end (inclusive)")
     run.add_argument("--force", action="store_true", help="re-extract unchanged revisions")
     run.add_argument("--repos-dir", default=None, help="where clones live (default tmp_repos)")
+    run.add_argument(
+        "--carry-branch",
+        type=_ref,
+        help="keep pending candidates already on this origin branch (read as data) instead of replacing them",
+    )
 
     for name, text in (
         ("review", "create or update maintainer review issues"),
@@ -99,6 +104,9 @@ def run_command(
             state = store.load_state()
             repo = (repos or {}).get(source) or GitRepo(SemconvRepositoryManager(source, args.repos_dir).setup())
             current = state["sources"].get(source, pipeline.empty_source_state())
+            if args.carry_branch:
+                for key, entry in carry.carry_pending(store, source, args.carry_branch, accepted).items():
+                    current["revisions"].setdefault(key, entry)
             if source == pipeline.CORE:
                 client = client or GitHubClient(os.environ.get("GITHUB_TOKEN"))
                 updated, report = pipeline.process_core(store, accepted, repo, client, current, opts)

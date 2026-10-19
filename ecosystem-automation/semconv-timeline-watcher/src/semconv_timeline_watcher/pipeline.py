@@ -101,7 +101,9 @@ def _process_spec(
             current["invalid"] = "; ".join(e.problems)[:1500]
         return "failed"
     if current and previous and not force:
-        if current["commit"] == spec["commit"] and not current.get("error"):
+        # The comparison is the target *and* its baseline: a moved or newly resolvable ancestor changes it.
+        same_inputs = previous.get("baselineCommit") == spec["baselineCommit"]
+        if current["commit"] == spec["commit"] and same_inputs and not current.get("error"):
             return "unchanged"
         if spec["kind"] == "release" and current["commit"] != spec["commit"]:
             # A published tag moved: report it for reconciliation instead of silently re-extracting.

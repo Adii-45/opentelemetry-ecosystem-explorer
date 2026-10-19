@@ -55,9 +55,11 @@ def _entries_for(entries: list[dict], namespace: str) -> list[dict]:
     return [e for e in entries if _norm(namespace) in {_norm(s) for s in e["scope"]}]
 
 
-def _links(model_files: list[str], repository: str, sha: str, entries: list[dict]) -> list[dict]:
+def _links(model_files: list[str], repository: str, sha: str | None, entries: list[dict]) -> list[dict]:
     links = [
-        {"label": f"model: {path}", "url": f"{repository}/blob/{sha}/{path}"} for path in sorted(set(model_files))[:3]
+        {"label": f"model: {path}", "url": f"{repository}/blob/{sha}/{path}"}
+        for path in sorted(set(model_files))[:3]
+        if sha
     ]
     for entry in entries:
         links.extend({"label": f"change #{ref['number']}", "url": ref["url"]} for ref in entry["references"])
@@ -79,8 +81,13 @@ def extract_candidates(
     after: Snapshot,
     entries: list[dict],
     lanes: list[dict],
+    baseline_sha: str | None = None,
 ) -> dict:
-    """Compare two snapshots. Returns ``{candidates, gaps, structure}``."""
+    """Compare two snapshots. Returns ``{candidates, gaps, structure}``.
+
+    Evidence links point at the revision where the cited file exists: *sha* (the target) for definitions
+    that are present, *baseline_sha* for a removed namespace, whose files are only in the baseline snapshot.
+    """
     gaps: list[dict] = []
     transitions: dict[tuple[str, str | None, str | None], list[tuple[str, str]]] = defaultdict(list)
     before_ns, after_ns = Counter(), Counter()
@@ -134,6 +141,7 @@ def extract_candidates(
             "removed",
             subjects=sorted(n for (_, n) in before.subjects if namespace_of(n) == namespace),
             files=[f for s, f in before.files.items() if namespace_of(s[1]) == namespace],
+            revision=baseline_sha,  # None when unknown: no model link is fabricated
             **{"from": Counter()},
         )
 
@@ -214,7 +222,7 @@ def extract_candidates(
                 "scope": {"changed": len(subjects), "total": total},
                 "fromStates": dict(sorted(p["from"].items())),
                 "subjects": subjects,  # complete: the digest compares it; the review issue shortens it
-                "evidence": _links(p["files"], repository, sha, related),
+                "evidence": _links(p["files"], repository, p.get("revision", sha), related),
                 "changelog": [{"text": e["text"], "references": e["references"]} for e in related][:_MAX_LINKS],
                 "reasons": reasons,
                 "warnings": warnings,

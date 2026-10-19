@@ -69,8 +69,9 @@ def test_each_source_has_an_isolated_discover_review_chain_and_failures_notify(w
         discover = jobs[f"{short}-discover"]
         assert discover["needs"] == ["validate-inputs"]
         forwarded = f"${{{{ needs.validate-inputs.outputs.{short}-args }}}}"
-        assert (
-            discover["with"]["watcher-command"] == f"uv run semconv-timeline-watcher run --source {source}{forwarded}"
+        carried = f"--carry-branch otelbot/automated-semconv-timeline-{short}"  # pending candidates must survive
+        assert discover["with"]["watcher-command"] == (
+            f"uv run semconv-timeline-watcher run --source {source} {carried}{forwarded}"
         )
         assert discover["with"]["registry-path"] == f"ecosystem-registry/semantic-conventions/{source}/"
         assert discover["with"]["branch-name"] == f"otelbot/automated-semconv-timeline-{short}"
@@ -230,3 +231,16 @@ def test_the_ci_pipeline_runs_this_packages_tests_on_pull_requests():
     assert "uv sync --locked" in runs and "cd ecosystem-automation/semconv-timeline-watcher" in runs
     assert "pytest tests/" in runs and "--cov=semconv_timeline_watcher" in runs
     assert ci[True]["pull_request"]["branches"] == ["main"]
+
+
+def test_local_reusable_workflows_use_valid_repository_relative_paths(workflow):
+    used = {}
+    for name, job in workflow["jobs"].items():
+        if "uses" in job:
+            used[name] = job["uses"]
+            assert re.fullmatch(r"\./\.github/workflows/[\w.-]+\.yml", job["uses"]), f"{name}: {job['uses']}"
+            assert (WORKFLOW.parent / Path(job["uses"]).name).is_file(), f"{name}: workflow file does not exist"
+    assert set(used.values()) == {
+        "./.github/workflows/reusable-registry-sync.yml",
+        "./.github/workflows/reusable-workflow-notification.yml",
+    }

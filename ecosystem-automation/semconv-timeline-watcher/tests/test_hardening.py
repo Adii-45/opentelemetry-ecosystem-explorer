@@ -469,3 +469,21 @@ def test_review_and_check_survive_a_malformed_id_and_the_healthy_revision_still_
     assert "## Review `semantic-conventions@v1.1.0`" in by_marker[second]["body"]
     assert check(env) == 1  # check reports the same defect instead of crashing
     assert "id must be a non-empty string" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("event_id", [[], {}, None, 7], ids=repr)
+def test_a_malformed_event_id_fails_only_its_record_and_the_healthy_one_is_still_reviewed(env, capsys, event_id):
+    first, second = _break_first_candidate_id(env, "ok-id")
+    store = Store(env["tmp"] / "reg" / CORE)
+    bad = store.read_record(CORE, first)
+    bad["candidates"][-1]["disposition"] = {"status": "accepted", "eventId": event_id}
+    store.record_path(CORE, first).write_text(json.dumps(bad))
+    issues = FakeClient()
+    reviews(env, issues)  # refresh_statuses reads every record first; it must not raise TypeError
+    by_marker = {m: i for m in (first, second) for i in issues.issues if review.marker(m) in i["body"]}
+    assert set(by_marker) == {first, second}  # both revisions got an issue
+    assert "## Review `semantic-conventions@v1.1.0`" in by_marker[second]["body"]
+    assert check(env) == 1
+    assert "needs an eventId string" in capsys.readouterr().err
+    state = Store(env["tmp"] / "reg" / CORE).load_state()["sources"][CORE]
+    assert state["revisions"][first]["status"] != "complete"  # never silently advanced

@@ -80,7 +80,7 @@ def build_record(spec: dict, repo: GitRepo, accepted: AcceptedHistory, paths: li
     gaps: list[dict] = []
     candidates: list[dict] = []
     method: dict = {"extractor": EXTRACTOR, "filesParsed": 0, "filesUnparsed": []}
-    structure: dict = {}
+    structure: dict | None = None  # stays None, and is omitted, when no comparison was made
     base = spec["baselineCommit"]
     entries: list[dict] = []
     relevant: list[dict] = []
@@ -136,6 +136,7 @@ def build_record(spec: dict, repo: GitRepo, accepted: AcceptedHistory, paths: li
             after=after,
             entries=entries,
             lanes=accepted.lanes,
+            baseline_sha=base,
         )
         candidates, structure = found["candidates"], found["structure"]
         gaps += found["gaps"]
@@ -150,7 +151,7 @@ def build_record(spec: dict, repo: GitRepo, accepted: AcceptedHistory, paths: li
         "date": spec["date"],
         "dateBasis": spec["dateBasis"],
         "compareUrl": compare_url(spec),
-        "method": {**method, "structure": structure},
+        "method": {**method, **({"structure": structure} if structure is not None else {})},
         "gaps": sorted(gaps, key=lambda g: (g["kind"], g["message"])),
         "incomplete": any(g["kind"] == "incomplete" for g in gaps),
         "candidates": candidates,

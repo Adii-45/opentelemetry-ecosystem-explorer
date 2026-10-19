@@ -137,6 +137,13 @@ reported through `reusable-workflow-notification.yml`). Merging the candidate PR
 Manual `tag`, `from`, `to` and `force` inputs require choosing one source and are validated by the
 watcher; dispatching requires write access.
 
+The sync job force-pushes the automation branch, so `run --carry-branch <branch>` first copies the
+branch's pending candidate files into the working tree, as data: each is parsed, validated like any
+candidate file and written only if the default branch does not already hold that revision (a merged
+record wins, and a release accepted since is dropped). Nothing from the branch is executed. A branch
+that cannot be fetched fails the source instead of being treated as empty; a missing branch is a
+first run. Edits made on the branch to a record the default branch already holds are not carried.
+
 Trust boundary: the review job runs only code from the default branch. The automation branch is
 checked out into a separate `automation-data/` directory and read as JSON; nothing from it is
 installed or executed. The job's token can write issues and read contents and pull requests, nothing

@@ -146,7 +146,8 @@ def merge_dispositions(old: dict | None, new: dict) -> dict:
     """
     if not old:
         return new
-    same_revision = old.get("commit") == new["commit"]
+    # The same revision means the same target *and* baseline; a different baseline is a different comparison.
+    same_revision = old.get("commit") == new["commit"] and old.get("baselineCommit") == new.get("baselineCommit")
     previous = {c["id"]: c for c in old["candidates"]}
     reset = []
     for candidate in new["candidates"]:
@@ -167,6 +168,11 @@ def merge_dispositions(old: dict | None, new: dict) -> dict:
     return new
 
 
+def _text(value: object) -> bool:
+    """A string with at least one non-whitespace character; nothing is coerced."""
+    return isinstance(value, str) and bool(value.strip())
+
+
 def check_record(record: dict, accepted: AcceptedHistory) -> list[str]:
     """Problems with the dispositions in a record; an empty list means they are well formed."""
     problems = []
@@ -176,17 +182,18 @@ def check_record(record: dict, accepted: AcceptedHistory) -> list[str]:
             continue
         status = disposition.get("status")
         if status == "accepted":
-            if disposition.get("eventId") not in accepted.events:
-                problems.append(
-                    f"{candidate['id']}: accepted event {disposition.get('eventId')!r} is not in timeline.json"
-                )
+            event_id = disposition.get("eventId")
+            if not _text(event_id):  # checked before the lookup: a list or object id is unhashable
+                problems.append(f"{candidate['id']}: an accepted candidate needs an eventId string")
+            elif event_id not in accepted.events:
+                problems.append(f"{candidate['id']}: accepted event {event_id!r} is not in timeline.json")
         elif status == "excluded":
-            if not str(disposition.get("reason", "")).strip():
+            if not _text(disposition.get("reason")):
                 problems.append(f"{candidate['id']}: an excluded candidate needs a reason")
         else:
             problems.append(f"{candidate['id']}: unknown disposition status {status!r}")
     no_milestone = record.get("noMilestone")
-    if no_milestone is not None and not str(no_milestone.get("reason", "")).strip():
+    if no_milestone is not None and not _text(no_milestone.get("reason")):
         problems.append(f"{record['reviewKey']}: noMilestone needs a reason")
     if no_milestone is not None and record["candidates"]:
         problems.append(f"{record['reviewKey']}: noMilestone is set but candidates exist; dispose of each instead")

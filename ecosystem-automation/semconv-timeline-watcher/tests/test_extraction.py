@@ -285,3 +285,56 @@ def test_a_candidate_keeps_every_affected_subject_not_just_the_displayed_ones(ac
     )
     (candidate,) = found["candidates"]
     assert candidate["subjects"] == names and candidate["scope"] == {"changed": 15, "total": 15}
+
+
+BASE_SHA, HEAD_SHA = "b" * 40, "a" * 40
+
+
+def _evidence(before, after, **kwargs):
+    found = extract_candidates(
+        source_id="semantic-conventions",
+        review_key="k",
+        repository="https://r",
+        sha=HEAD_SHA,
+        before=before,
+        after=after,
+        entries=[],
+        lanes=[],
+        **kwargs,
+    )
+    return {c["kind"]: [link["url"] for link in c["evidence"]] for c in found["candidates"]}
+
+
+def test_removal_evidence_links_the_baseline_where_the_deleted_file_still_exists():
+    before = Snapshot(
+        subjects={("attribute", "gone.a"): "stable"}, files={("attribute", "gone.a"): "model/gone/registry.yaml"}
+    )
+    urls = _evidence(before, Snapshot(), baseline_sha=BASE_SHA)["removed"]
+    assert urls == [f"https://r/blob/{BASE_SHA}/model/gone/registry.yaml"]  # not the head, where it is deleted
+
+
+def test_a_definition_removed_from_a_surviving_file_links_the_baseline_version_of_that_file():
+    shared = "model/shared/registry.yaml"
+    before = Snapshot(
+        subjects={("attribute", "gone.a"): "stable", ("attribute", "kept.b"): "stable"},
+        files={("attribute", "gone.a"): shared, ("attribute", "kept.b"): shared},
+    )
+    after = Snapshot(subjects={("attribute", "kept.b"): "stable"}, files={("attribute", "kept.b"): shared})
+    assert _evidence(before, after, baseline_sha=BASE_SHA)["removed"] == [f"https://r/blob/{BASE_SHA}/{shared}"]
+
+
+def test_definitions_that_are_present_keep_linking_the_target_revision():
+    before = Snapshot(
+        subjects={("attribute", "k8s.a"): "development"}, files={("attribute", "k8s.a"): "model/k8s/r.yaml"}
+    )
+    after = Snapshot(subjects={("attribute", "k8s.a"): "stable"}, files={("attribute", "k8s.a"): "model/k8s/r.yaml"})
+    assert _evidence(before, after, baseline_sha=BASE_SHA)["stability"] == [
+        f"https://r/blob/{HEAD_SHA}/model/k8s/r.yaml"
+    ]
+    added = _evidence(Snapshot(), after, baseline_sha=BASE_SHA)["domain"]
+    assert added == [f"https://r/blob/{HEAD_SHA}/model/k8s/r.yaml"]
+
+
+def test_a_removal_without_a_known_baseline_gets_no_fabricated_model_link():
+    before = Snapshot(subjects={("attribute", "gone.a"): "stable"}, files={("attribute", "gone.a"): "model/g.yaml"})
+    assert _evidence(before, Snapshot())["removed"] == []

@@ -16,10 +16,11 @@
 """End-to-end pipeline behaviour on fixture repositories: replay, failure, coverage and completion."""
 
 import pytest
-from semconv_timeline_watcher import pipeline
+from semconv_timeline_watcher import pipeline, revisions
 from semconv_timeline_watcher.accepted import TIMELINE_PATH
 from semconv_timeline_watcher.gitrepo import GitError
 from semconv_timeline_watcher.state import REGISTRY_DIR, Store
+from semconv_timeline_watcher.validation import record_problems
 from watcher_common.testing import run_git
 
 from .conftest import CORE, GENAI, RELEASES, FakeClient, commit, release, run_core, run_genai, write
@@ -282,7 +283,7 @@ def _range_record(base, end, *, date, disposition=None):
         "date": date,
         "dateBasis": "commit-date",
         "incomplete": False,
-        "method": {},
+        "method": {"structure": {"groupsAdded": 0, "groupsRemoved": 0, "subjectsAddedToExistingNamespaces": 0}},
         "gaps": [],
         "relevantCommits": [],
         "noMilestone": None,
@@ -333,3 +334,86 @@ def test_independent_ranges_and_releases_keep_the_plain_date_then_key_order(tmp_
         record["baselineCommit"] = store.read_record(CORE, state["order"][-1])["commit"]
         store.write_record(record)
     assert pipeline.refresh_statuses(store, accepted, state)["order"] == plain
+
+
+PENDING_KEY = f"{CORE}@v1.1.0"
+
+
+def _release(core, accepted, tag="v1.1.0", baseline=None, baseline_tag=None):
+    return revisions.release_spec(
+        source=CORE,
+        repository=accepted.sources[CORE]["repository"],
+        tag=tag,
+        commit=core["shas"][tag],
+        date="2026-02-02",
+        baseline_tag=baseline_tag,
+        baseline_commit=baseline,
+    )
+
+
+def _process(store, core, accepted, spec, src):
+    paths = accepted.sources[CORE]["paths"]
+    return pipeline._process_spec(store, core["git"], accepted, spec, src, paths, False)
+
+
+def test_a_record_without_an_ancestor_baseline_is_valid_incomplete_and_has_no_structure(tmp_path, accepted, core):
+    store, src = Store(tmp_path / "reg"), pipeline.empty_source_state()
+    assert _process(store, core, accepted, _release(core, accepted), src) == "created"
+    record = store.read_record(CORE, PENDING_KEY)  # read_record validates the file
+    assert record["baselineCommit"] is None and record["incomplete"] is True
+    assert "structure" not in record["method"]  # nothing was compared, so no misleading empty counters
+    assert any("nothing was compared" in g["message"] for g in record["gaps"])
+    assert record_problems(record) == []
+
+
+def test_a_compared_record_keeps_its_structure_and_the_validator_still_requires_it(tmp_path, accepted, core):
+    store, src = Store(tmp_path / "reg"), pipeline.empty_source_state()
+    spec = _release(core, accepted, baseline=core["shas"]["v1.0.0"], baseline_tag="v1.0.0")
+    assert _process(store, core, accepted, spec, src) == "created"
+    record = store.read_record(CORE, PENDING_KEY)
+    assert set(record["method"]["structure"]) == {
+        "groupsAdded",
+        "groupsRemoved",
+        "subjectsAddedToExistingNamespaces",
+    }
+    del record["method"]["structure"]  # claims a comparison but lacks its data
+    assert any("method.structure is required" in p for p in record_problems(record))
+    record["method"]["structure"] = {"groupsAdded": 1}
+    assert any("method.structure needs integer" in p for p in record_problems(record))
+
+
+def test_extraction_is_reused_only_while_target_and_baseline_are_unchanged(tmp_path, accepted, core):
+    store, src = Store(tmp_path / "reg"), pipeline.empty_source_state()
+    spec = _release(core, accepted, baseline=core["shas"]["v1.0.0"], baseline_tag="v1.0.0")
+    assert _process(store, core, accepted, spec, src) == "created"
+    assert _process(store, core, accepted, spec, src) == "unchanged"  # same target, same baseline: fast path
+    # The nearest ancestor changes (a tag moved or another release became resolvable); the target is the same.
+    other = _release(core, accepted, baseline=core["shas"]["v1.0.1"], baseline_tag="v1.0.1")
+    assert other["commit"] == spec["commit"]
+    assert _process(store, core, accepted, other, src) == "updated"
+    assert store.read_record(CORE, PENDING_KEY)["baselineCommit"] == core["shas"]["v1.0.1"]
+    assert _process(store, core, accepted, other, src) == "unchanged"
+
+
+def test_an_unresolved_baseline_is_reused_until_one_appears_then_refreshed(tmp_path, accepted, core):
+    store, src = Store(tmp_path / "reg"), pipeline.empty_source_state()
+    assert _process(store, core, accepted, _release(core, accepted), src) == "created"
+    assert _process(store, core, accepted, _release(core, accepted), src) == "unchanged"  # still no baseline
+    resolved = _release(core, accepted, baseline=core["shas"]["v1.0.0"], baseline_tag="v1.0.0")
+    assert _process(store, core, accepted, resolved, src) == "updated"
+    record = store.read_record(CORE, PENDING_KEY)
+    assert record["baselineCommit"] == core["shas"]["v1.0.0"] and "structure" in record["method"]
+
+
+def test_a_changed_baseline_does_not_keep_a_no_milestone(tmp_path, accepted, core):
+    store, src = Store(tmp_path / "reg"), pipeline.empty_source_state()
+    spec = _release(core, accepted, baseline=core["shas"]["v1.0.0"], baseline_tag="v1.0.0")
+    _process(store, core, accepted, spec, src)
+    record = store.read_record(CORE, PENDING_KEY)
+    record["candidates"], record["noMilestone"] = [], {"reason": "nothing worth a milestone"}
+    store.write_record(record)
+    other = _release(core, accepted, baseline=core["shas"]["v1.0.1"], baseline_tag="v1.0.1")
+    assert _process(store, core, accepted, other, src) == "updated"
+    refreshed = store.read_record(CORE, PENDING_KEY)
+    assert refreshed["noMilestone"] is None  # the new comparison has not been reviewed
+    assert refreshed["resetReviews"]["noMilestone"] == {"reason": "nothing worth a milestone"}
