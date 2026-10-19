@@ -99,7 +99,7 @@ jobs:
     permissions:
       contents: write # Push candidate files and processing state to the automation branch
       pull-requests: write # Create or update the automated candidate PR
-    uses: ./.github/workflows/reusable-registry-sync.yml
+    uses: $/.github/workflows/reusable-registry-sync.yml
     with:
       # Replay arguments come from validate-inputs, which rejects any that do not apply to a single source.
       watcher-command:
@@ -207,7 +207,7 @@ jobs:
     permissions:
       contents: write # Push candidate files and processing state to the automation branch
       pull-requests: write # Create or update the automated candidate PR
-    uses: ./.github/workflows/reusable-registry-sync.yml
+    uses: $/.github/workflows/reusable-registry-sync.yml
     with:
       # Replay arguments come from validate-inputs, which rejects any that do not apply to a single source.
       watcher-command:
@@ -314,7 +314,7 @@ jobs:
     if:
       ${{ !cancelled() && (needs.core-discover.result != 'skipped' || needs.genai-discover.result !=
       'skipped') }}
-    uses: ./.github/workflows/reusable-workflow-notification.yml
+    uses: $/.github/workflows/reusable-workflow-notification.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}
       watcher-name: "semconv-timeline-watcher"

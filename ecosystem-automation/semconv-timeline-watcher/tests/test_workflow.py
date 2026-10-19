@@ -233,14 +233,14 @@ def test_the_ci_pipeline_runs_this_packages_tests_on_pull_requests():
     assert ci[True]["pull_request"]["branches"] == ["main"]
 
 
-def test_local_reusable_workflows_use_valid_repository_relative_paths(workflow):
+def test_local_reusable_workflows_use_the_self_repository_reference_and_exist(workflow):
     used = {}
     for name, job in workflow["jobs"].items():
         if "uses" in job:
             used[name] = job["uses"]
-            assert re.fullmatch(r"\./\.github/workflows/[\w.-]+\.yml", job["uses"]), f"{name}: {job['uses']}"
+            assert re.fullmatch(r"\$/\.github/workflows/[\w.-]+\.yml", job["uses"]), f"{name}: {job['uses']}"
             assert (WORKFLOW.parent / Path(job["uses"]).name).is_file(), f"{name}: workflow file does not exist"
     assert set(used.values()) == {
-        "./.github/workflows/reusable-registry-sync.yml",
-        "./.github/workflows/reusable-workflow-notification.yml",
+        "$/.github/workflows/reusable-registry-sync.yml",
+        "$/.github/workflows/reusable-workflow-notification.yml",
     }
