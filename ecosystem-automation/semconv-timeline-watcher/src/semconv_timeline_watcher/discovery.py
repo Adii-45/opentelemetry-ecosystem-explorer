@@ -63,27 +63,3 @@ def nearest_ancestor_release(
         if best is None or key < best:
             best = key
     return (best[1], best[2]) if best else (None, None)
-
-
-def coalesce(git: GitRepo, ranges: list[tuple[str, str]]) -> list[tuple[str, str]]:
-    """Merge overlapping or touching ``(base, head)`` ranges of one linear history.
-
-    Ranges that are separated by an unreviewed gap stay separate, so coverage is never overstated.
-    """
-    pending = sorted(set(ranges))
-    changed = True
-    while changed:
-        changed = False
-        for i in range(len(pending)):
-            for j in range(i + 1, len(pending)):
-                (a, b), (c, d) = pending[i], pending[j]
-                if git.is_ancestor(a, d) and git.is_ancestor(c, b):  # they overlap or touch
-                    low = a if git.is_ancestor(a, c) else c
-                    high = b if git.is_ancestor(d, b) else d
-                    pending[i] = (low, high)
-                    del pending[j]
-                    changed = True
-                    break
-            if changed:
-                break
-    return sorted(pending)

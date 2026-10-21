@@ -22,7 +22,7 @@ import requests
 from semconv_timeline_watcher import discovery
 from semconv_timeline_watcher.github_client import GitHubClient, GitHubError
 
-from .conftest import FakeClient, commit, release, write
+from .conftest import FakeClient, release
 
 
 def test_only_published_releases_are_selected_in_a_fixed_order():
@@ -45,24 +45,6 @@ def test_tags_resolve_to_immutable_commits_and_missing_tags_are_reported(core):
     commits, errors = discovery.resolve_tags(core["git"], ["v1.0.0", "v9.9.9"])
     assert commits == {"v1.0.0": core["shas"]["v1.0.0"]}
     assert "v9.9.9" in errors
-
-
-def test_coalesce_merges_overlap_and_keeps_gaps_apart(genai):
-    git, monkeypatch, path = genai["git"], genai["monkeypatch"], genai["path"]
-    write(path, "docs/gen-ai/more.md", "more\n")
-    third = commit(path, "more docs", "2026-07-01T00:00:00+00:00", monkeypatch)
-    write(path, "docs/gen-ai/gap.md", "gap\n")
-    fourth = commit(path, "gap", "2026-07-02T00:00:00+00:00", monkeypatch)
-    write(path, "docs/gen-ai/tail.md", "tail\n")
-    fifth = commit(path, "tail", "2026-07-03T00:00:00+00:00", monkeypatch)
-    s = genai["shas"]
-    merged = discovery.coalesce(
-        git, [(s["start"], s["relevant"]), (s["irrelevant"], third), (s["start"], s["relevant"]), (fourth, fifth)]
-    )
-    assert merged == sorted([(s["start"], third), (fourth, fifth)])
-    assert discovery.coalesce(git, [(fourth, fifth), (s["start"], s["relevant"])]) == sorted(
-        [(s["start"], s["relevant"]), (fourth, fifth)]
-    )
 
 
 def _session(*pages):

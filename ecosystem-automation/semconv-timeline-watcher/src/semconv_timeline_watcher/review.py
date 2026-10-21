@@ -37,9 +37,31 @@ MAX_BODY = 60000  # GitHub rejects issue bodies above 65,536 characters
 _MENTION = re.compile(r"@(?=[\w-])")
 
 
-def safe(text: object) -> str:
-    """Make untrusted text inert in an issue: no mentions, no raw HTML comments, single line."""
-    return _MENTION.sub("@​", str(text)).replace("<!--", "<!​--").replace("\n", " ")
+_LOCAL_REFERENCE = re.compile(r"(?<![\w/#&.])#(\d+)\b")
+_CODE_SPAN = re.compile(r"(`[^`]*`)")
+
+
+def qualify(text: str, repo: str) -> str:
+    """Point bare ``#123`` references at *repo*, the upstream repository the text came from.
+
+    GitHub resolves a bare ``#123`` against the repository holding the issue, so upstream text would link
+    to an unrelated local issue or pull request. Code spans, URL fragments and references that already
+    name a repository (``owner/repo#123``) are left alone.
+    """
+    parts = _CODE_SPAN.split(text)
+    return "".join(
+        part if i % 2 else _LOCAL_REFERENCE.sub(lambda m: f"{repo}#{m.group(1)}", part) for i, part in enumerate(parts)
+    )
+
+
+def safe(text: object, upstream: str | None = None) -> str:
+    """Make untrusted text inert in an issue: no mentions, no raw HTML comments, single line.
+
+    Pass *upstream* (``owner/repo``) for text that came from that repository, so its issue and pull request
+    numbers are not read as references to this one.
+    """
+    text = qualify(str(text), upstream) if upstream else str(text)
+    return _MENTION.sub("@​", text).replace("<!--", "<!​--").replace("\n", " ")
 
 
 def marker(review_key: str) -> str:
@@ -128,6 +150,7 @@ def render_body(
     coverage: dict | None = None,
 ) -> str:
     source = accepted.sources[record["source"]]
+    upstream = source["repository"].removeprefix("https://github.com/")
     through = accepted.reviewed_through(record["source"]) or {}
     covered = through.get("tag") or (through.get("commit") or "nothing")[:12]
     baseline = f"`{record['baselineCommit']}`" + (f" ({record['baselineTag']})" if record.get("baselineTag") else "")
@@ -188,8 +211,8 @@ def render_body(
             f"- [ ] `{candidate['id']}`: {safe(candidate['transition'])} (lane `{candidate['lane']}`, proposed type "
             f"`{candidate['proposedType']}`, {candidate['scope']['changed']} of "
             f"{candidate['scope']['total']} subjects)",
-            *(f"  - {safe(reason)}" for reason in candidate["reasons"]),
-            *(f"  - ⚠ {safe(warning)}" for warning in candidate["warnings"][1:]),
+            *(f"  - {safe(reason, upstream)}" for reason in candidate["reasons"]),
+            *(f"  - ⚠ {safe(warning, upstream)}" for warning in candidate["warnings"][1:]),
             *(f"  - [{safe(link['label'])}]({link['url']})" for link in candidate["evidence"]),
         ]
         if candidate["subjects"]:
@@ -197,7 +220,7 @@ def render_body(
             more = f" … and {hidden} more (see the candidate file)" if hidden > 0 else ""
             lines.append("  - subjects: " + ", ".join(f"`{safe(s)}`" for s in shown) + more)
     lines += ["", "### Extraction gaps and ambiguities", ""]
-    lines += [f"- **{gap['kind']}**: {safe(gap['message'])}" for gap in record["gaps"]] or ["- none recorded"]
+    lines += [f"- **{gap['kind']}**: {safe(gap['message'], upstream)}" for gap in record["gaps"]] or ["- none recorded"]
     structure = (record.get("method") or {}).get("structure") or {}
     if structure:
         lines += [
@@ -208,8 +231,14 @@ def render_body(
         ]
     lines += move_sections(record, accepted, coverage or {})
     if record["kind"] == "range":
-        lines += ["", f"### Commits ({len(record['relevantCommits'])} relevant)", ""]
-        lines += [f"- `{c['commit'][:12]}` {safe(c['subject'])}" for c in record["relevantCommits"]]
+        shown = len(record["relevantCommits"])
+        counted = (record.get("method") or {}).get("relevantCommitCount")  # the full range, not the capped list
+        total = counted if isinstance(counted, int) and counted > shown else shown
+        heading = f"{total} relevant" if total == shown else f"showing {shown} of {total} relevant, oldest first"
+        lines += ["", f"### Commits ({heading})", ""]
+        lines += [f"- `{c['commit'][:12]}` {safe(c['subject'], upstream)}" for c in record["relevantCommits"]]
+        if total > shown:
+            lines.append(f"- _{total - shown} newer relevant commit(s) are not listed; use the comparison link above._")
     lines += [
         "",
         "### Record a disposition",

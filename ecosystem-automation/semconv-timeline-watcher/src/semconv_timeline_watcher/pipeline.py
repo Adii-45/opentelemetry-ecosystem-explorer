@@ -88,6 +88,17 @@ def refresh_statuses(store: Store, accepted: AcceptedHistory, src: dict) -> dict
     return src
 
 
+def _state_entry(spec: dict) -> dict:
+    """The state entry for a revision. ``manual`` and ``tag`` matter to ordering and the cursor, so a failure
+    must carry them too: a failed explicit replay must never look like an ordinary revision of the run."""
+    entry = {"kind": spec["kind"], "source": spec["source"], "commit": spec["commit"]}
+    if spec.get("manual"):
+        entry["manual"] = True
+    if spec.get("tag"):
+        entry["tag"] = spec["tag"]
+    return entry
+
+
 def _process_spec(
     store: Store, repo: GitRepo, accepted: AcceptedHistory, spec: dict, src: dict, paths: list[str], force: bool
 ) -> str:
@@ -117,19 +128,9 @@ def _process_spec(
         if current:
             current["error"] = str(e)
         else:
-            src["revisions"][key] = {
-                "kind": spec["kind"],
-                "source": spec["source"],
-                "commit": spec["commit"],
-                "error": str(e),
-            }
+            src["revisions"][key] = {**_state_entry(spec), "error": str(e)}
         return "failed"
-    entry = {"kind": spec["kind"], "source": spec["source"], "commit": spec["commit"]}
-    if spec.get("manual"):
-        entry["manual"] = True
-    if spec.get("tag"):
-        entry["tag"] = spec["tag"]
-    src["revisions"][key] = entry
+    src["revisions"][key] = _state_entry(spec)
     return "updated" if previous else "created"
 
 

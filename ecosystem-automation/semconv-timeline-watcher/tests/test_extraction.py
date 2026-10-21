@@ -15,14 +15,16 @@
 
 """Git access, model snapshots, changelog parsing and candidate extraction."""
 
+import subprocess
+
 import pytest
-from semconv_timeline_watcher import changelog, discovery, revisions
+from semconv_timeline_watcher import carry, changelog, discovery, gitrepo, revisions
 from semconv_timeline_watcher.extract import extract_candidates
 from semconv_timeline_watcher.gitrepo import GitError
 from semconv_timeline_watcher.model_diff import Snapshot, take_snapshot
 from watcher_common.testing import git_commit, run_git
 
-from .conftest import write
+from .conftest import commit, write
 
 
 def test_resolve_pins_tags_branches_and_rejects_bad_refs(core):
@@ -338,3 +340,29 @@ def test_definitions_that_are_present_keep_linking_the_target_revision():
 def test_a_removal_without_a_known_baseline_gets_no_fabricated_model_link():
     before = Snapshot(subjects={("attribute", "gone.a"): "stable"}, files={("attribute", "gone.a"): "model/g.yaml"})
     assert _evidence(before, Snapshot())["removed"] == []
+
+
+def test_non_ascii_commit_subjects_and_files_round_trip_through_git(genai):
+    subject = "Añadir modèle — 日本語 ✓ (#5)"
+    write(genai["path"], "docs/gen-ai/unicode.md", "naïve — 日本語\n")
+    sha = commit(genai["path"], subject, "2026-07-01T00:00:00+00:00", genai["monkeypatch"])
+    git = genai["git"]
+    assert git.commits(genai["shas"]["relevant"], sha, ["docs"]) == [(sha, subject)]
+    assert git.show(sha, "docs/gen-ai/unicode.md") == "naïve — 日本語\n"
+
+
+@pytest.mark.parametrize("module", [gitrepo, carry], ids=["gitrepo", "carry"])
+def test_git_output_is_decoded_as_utf8_whatever_the_locale(module, tmp_path, monkeypatch):
+    seen = []
+    real = subprocess.run
+
+    def spy(*args, **kwargs):
+        seen.append(kwargs)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(module.subprocess, "run", spy)
+    if module is gitrepo:
+        gitrepo.GitRepo(tmp_path)._run("--version")
+    else:
+        carry._git(tmp_path, "--version")
+    assert seen and all(call["text"] is True and call["encoding"] == "utf-8" for call in seen)

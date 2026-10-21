@@ -43,7 +43,7 @@ _GIT = shutil.which("git") or "git"
 
 
 def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run([_GIT, *args], cwd=root, capture_output=True, text=True, check=False)  # noqa: S603
+    return subprocess.run([_GIT, *args], cwd=root, capture_output=True, text=True, encoding="utf-8", check=False)  # noqa: S603
 
 
 def _relative(store: Store, root: Path) -> str:

@@ -83,6 +83,11 @@ Each pending or partial revision has one issue, found by the hidden marker
 `semantic-conventions-genai@<12-char start>..` for the open-ended range), so reruns and overlapping
 workflows update it rather than duplicate it. A closed issue whose review is incomplete is reopened.
 
+The watcher never closes an issue. Once a revision is complete (every candidate disposed of, or a
+`noMilestone` reason recorded) it stops updating that revision's issue and leaves it as it is; a
+maintainer closes it. Completion is processing state, not acceptance: history changes only through a
+reviewed edit of `timeline.json`.
+
 To finish a review, edit the candidate file named in the issue:
 
 ```json

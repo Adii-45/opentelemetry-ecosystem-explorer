@@ -417,3 +417,59 @@ def test_a_changed_baseline_does_not_keep_a_no_milestone(tmp_path, accepted, cor
     refreshed = store.read_record(CORE, PENDING_KEY)
     assert refreshed["noMilestone"] is None  # the new comparison has not been reviewed
     assert refreshed["resetReviews"]["noMilestone"] == {"reason": "nothing worth a milestone"}
+
+
+def _fail_extraction(monkeypatch):
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("extraction exploded")
+
+    monkeypatch.setattr(pipeline.revisions, "build_record", boom)
+
+
+def test_a_failed_first_manual_range_keeps_its_flag_and_never_clears_the_cursor(tmp_path, accepted, genai, monkeypatch):
+    store = Store(tmp_path / "reg")
+    state, _ = run_genai(store, accepted, genai)
+    (done,) = state["revisions"]
+    record = store.read_record(GENAI, done)
+    record["noMilestone"] = {"reason": "an attribute addition inside an existing namespace"}
+    store.write_record(record)
+    state = pipeline.refresh_statuses(store, accepted, state)
+    assert state["cursor"] == done and state["revisions"][done]["status"] == "complete"
+
+    _fail_extraction(monkeypatch)  # the explicit replay fails the first time it is tried
+    failed, report = run_genai(
+        store, accepted, genai, state, from_ref=genai["shas"]["start"], to_ref=genai["shas"]["relevant"]
+    )
+    (manual_key,) = [k for k in failed["revisions"] if k != done]
+    entry = failed["revisions"][manual_key]
+    assert report["actions"][manual_key] == "failed" and "extraction exploded" in entry["error"]
+    assert entry["manual"] is True  # kept: it is an explicit replay, outside the cursor's run
+    # The decisive part: the failure must not enter ordinary cursor processing. With no candidate file its date is
+    # empty, which would sort first, and the cursor would be cleared.
+    assert failed["order"] == [done] and failed["cursor"] == done
+    assert failed["revisions"][done]["status"] == "complete"
+    refreshed = pipeline.refresh_statuses(store, accepted, failed)
+    assert refreshed["order"] == [done] and refreshed["cursor"] == done
+    assert refreshed["revisions"][manual_key]["status"] == "failed"  # still visible, never treated as processed
+
+    # The next ordinary run starts after the completed range and leaves its noMilestone alone.
+    monkeypatch.undo()
+    again, _ = run_genai(store, accepted, genai, refreshed)
+    assert again["cursor"] == done
+    assert store.read_record(GENAI, done)["noMilestone"] == record["noMilestone"]
+
+
+def test_a_failed_first_extraction_of_a_published_release_keeps_its_tag(tmp_path, accepted, core, monkeypatch):
+    store = Store(tmp_path / "reg")
+    _fail_extraction(monkeypatch)
+    state, report = run_core(store, accepted, core, tag="v1.1.0")
+    key = f"{CORE}@v1.1.0"
+    assert report["actions"][key] == "failed"
+    assert state["revisions"][key] == {
+        "kind": "release",
+        "source": CORE,
+        "commit": core["shas"]["v1.1.0"],
+        "tag": "v1.1.0",
+        "error": "extraction exploded",
+        "status": "failed",
+    }

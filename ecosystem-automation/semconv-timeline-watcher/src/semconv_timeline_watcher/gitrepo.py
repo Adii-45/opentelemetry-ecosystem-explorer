@@ -39,7 +39,7 @@ class GitRepo:
 
     def _run(self, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
         result = subprocess.run(  # noqa: S603
-            [_GIT, *args], cwd=self.path, capture_output=True, text=True, check=False
+            [_GIT, *args], cwd=self.path, capture_output=True, text=True, encoding="utf-8", check=False
         )
         if check and result.returncode != 0:
             raise GitError(f"git {' '.join(args)} failed: {result.stderr.strip()}")
