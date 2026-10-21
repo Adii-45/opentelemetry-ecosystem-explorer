@@ -227,6 +227,31 @@ def test_manual_range_replays_a_closed_interval_in_either_source(tmp_path, accep
         run_core(store, accepted, core, tag="v7.7.7")
 
 
+def test_a_core_range_records_its_missing_changelog_evidence_and_must_run_forwards(tmp_path, accepted, core):
+    store = Store(tmp_path / "reg")
+    _, report = run_core(store, accepted, core, from_ref="v1.0.0", to_ref="v1.1.0")
+    (key,) = report["actions"]
+    record = store.read_record(CORE, key)
+    assert record["incomplete"]  # core has no changelog.d, so a range cannot claim changelog coverage
+    assert any("changelog.d" in g["message"] for g in record["gaps"])
+    with pytest.raises(GitError, match="not an ancestor"):
+        run_core(store, accepted, core, from_ref="v1.1.0", to_ref="v1.0.0")
+
+
+def test_a_tag_that_briefly_fails_to_resolve_recovers_without_a_false_tag_move(tmp_path, accepted, core):
+    store, key = Store(tmp_path / "reg"), f"{CORE}@v1.1.0"
+    state, _ = run_core(store, accepted, core)
+    run_git(core["path"], "tag", "-d", "v1.1.0")
+    state, report = run_core(store, accepted, core, state)
+    assert report["actions"][key] == "failed"
+    assert state["revisions"][key]["commit"] == core["shas"]["v1.1.0"]  # the known commit is kept
+    run_git(core["path"], "tag", "v1.1.0", core["shas"]["v1.1.0"])
+    state, report = run_core(store, accepted, core, state)
+    assert report["actions"][key] == "updated"
+    assert "tagChanged" not in state["revisions"][key] and state["revisions"][key]["status"] == "pending"
+    store.save_state({"schemaVersion": 1, "sources": {CORE: state}})  # previously rejected as invalid
+
+
 def test_published_candidates_stay_out_of_public_data():
     assert "public" not in REGISTRY_DIR.parts and REGISTRY_DIR.parts[0] == "ecosystem-registry"
     assert "public" in TIMELINE_PATH.parts  # accepted history is the only thing published

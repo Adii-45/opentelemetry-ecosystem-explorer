@@ -36,6 +36,18 @@ def test_resolve_pins_tags_branches_and_rejects_bad_refs(core):
             git.resolve(bad)
 
 
+def test_a_branch_name_resolves_to_the_fetched_origin_branch_not_a_stale_local_one(tmp_path, core):
+    clone = tmp_path / "clone"
+    run_git(tmp_path, "clone", "--quiet", str(core["path"]), str(clone))
+    write(core["path"], "model/later.yaml", "groups: []\n")
+    later = commit(core["path"], "later", "2026-03-01T00:00:00+00:00", core["monkeypatch"])
+    run_git(clone, "fetch", "--quiet", "origin")  # what the repository manager does; local main does not move
+    git = gitrepo.GitRepo(clone)
+    assert git.resolve("main") == later
+    assert git.resolve("v1.1.0") == core["shas"]["v1.1.0"]  # tags still win over branch names
+    assert git.resolve(core["shas"]["v1.0.0"]) == core["shas"]["v1.0.0"]
+
+
 def test_commit_date_is_normalised_to_utc(core):
     # Committed at 23:30 on Feb 1 in UTC-5, which is Feb 2 in UTC.
     assert core["git"].commit_date(core["shas"]["v1.1.0"]) == "2026-02-02"

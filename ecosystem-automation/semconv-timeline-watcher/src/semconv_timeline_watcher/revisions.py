@@ -117,6 +117,14 @@ def build_record(spec: dict, repo: GitRepo, accepted: AcceptedHistory, paths: li
             else:
                 entries = parsed
         else:
+            if not repo.list_files(spec["commit"], "changelog.d"):
+                # Only changelog.d fragments can be split by range; core keeps .chloggen/ and CHANGELOG.md.
+                gaps.append(
+                    {
+                        "kind": "incomplete",
+                        "message": "No changelog.d fragments at this revision, so changelog evidence is not covered.",
+                    }
+                )
             for path in repo.changed_paths(base, spec["commit"], ["changelog.d"]):
                 fragment_text = repo.show(spec["commit"], path)
                 if fragment_text is not None and (

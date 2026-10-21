@@ -58,7 +58,8 @@ requirement-level or documentation-only changes. Changelog wording alone never c
 wording that the structured diff does not support is listed as an _ambiguity_ (for example a later
 changelog that refers back to an earlier promotion). Unparsed files, a missing changelog section or
 a missing baseline mark the revision `incomplete` (status `partial`): it is never reported as "no
-change". Every candidate sets `requiresReview`. [EXTRACTION-EVALUATION.md](EXTRACTION-EVALUATION.md)
+change". So does a commit range with no `changelog.d/` fragments, such as a core `--from/--to`
+replay: core's changelog is not split by range. Every candidate sets `requiresReview`. [EXTRACTION-EVALUATION.md](EXTRACTION-EVALUATION.md)
 records the audited cases and the automation/manual boundary. Weaver is not used; a pinned
 evaluation can be added behind the same snapshot interface if it proves worthwhile.
 

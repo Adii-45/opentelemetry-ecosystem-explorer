@@ -238,7 +238,8 @@ class FakeClient:
         yield from self._releases
 
     def find_issue(self, repo, marker, label):
-        return next((i for i in self.issues if marker in i["body"]), None)
+        # Filters by label like the real API, so an issue created without it is not found again.
+        return next((i for i in self.issues if label in i["labels"] and marker in i["body"]), None)
 
     def create_issue(self, repo, title, body, labels):
         issue = {"number": len(self.issues) + 1, "title": title, "body": body, "state": "open", "labels": labels}

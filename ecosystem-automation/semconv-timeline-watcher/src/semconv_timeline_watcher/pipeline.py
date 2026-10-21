@@ -171,6 +171,8 @@ def process_core(
     for kind, tag in targets:
         if kind == "range":
             base, head = repo.resolve(opts["from_ref"]), repo.resolve(opts["to_ref"])
+            if not repo.is_ancestor(base, head):
+                raise GitError(f"{opts['from_ref']} is not an ancestor of {opts['to_ref']}; a range must run forwards")
             spec = revisions.range_spec(
                 source=CORE,
                 repository=repository,
@@ -181,14 +183,19 @@ def process_core(
             )
         else:
             if tag in errors:
-                src["revisions"][f"{CORE}@{tag}"] = {
-                    "kind": "release",
-                    "source": CORE,
-                    "commit": "",
-                    "error": errors[tag],
-                    "tag": tag,
-                }
-                report["actions"][f"{CORE}@{tag}"] = "failed"
+                key = f"{CORE}@{tag}"
+                if key in src["revisions"]:
+                    # Keep the known commit: blanking it would read as a moved tag once the tag resolves again.
+                    src["revisions"][key]["error"] = errors[tag]
+                else:
+                    src["revisions"][key] = {
+                        "kind": "release",
+                        "source": CORE,
+                        "commit": "",
+                        "error": errors[tag],
+                        "tag": tag,
+                    }
+                report["actions"][key] = "failed"
                 continue
             base_tag, base_commit = discovery.nearest_ancestor_release(repo, commits[tag], commits, tag)
             spec = revisions.release_spec(

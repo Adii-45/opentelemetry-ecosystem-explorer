@@ -49,11 +49,15 @@ class GitRepo:
         """Resolve *ref* to a full commit SHA, or raise GitError."""
         if not REF_RE.match(ref) and not SHA_RE.match(ref):
             raise GitError(f"invalid ref: {ref!r}")
-        result = self._run("rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}", check=False)
-        sha = result.stdout.strip()
-        if result.returncode != 0 or not SHA_RE.match(sha):
-            raise GitError(f"cannot resolve {ref!r} to a commit")
-        return sha
+        # A managed clone is only ever fetched, so its local branches stay at the first clone: a branch name
+        # must resolve to the fetched origin branch. Tags keep precedence, as in git's own lookup order.
+        qualified = SHA_RE.match(ref) or ref.startswith("refs/")
+        for candidate in [ref] if qualified else [f"refs/tags/{ref}", f"refs/remotes/origin/{ref}", ref]:
+            result = self._run("rev-parse", "--verify", "--quiet", f"{candidate}^{{commit}}", check=False)
+            sha = result.stdout.strip()
+            if result.returncode == 0 and SHA_RE.match(sha):
+                return sha
+        raise GitError(f"cannot resolve {ref!r} to a commit")
 
     def tag_commit(self, tag: str) -> str:
         return self.resolve(f"refs/tags/{tag}")
